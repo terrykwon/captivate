@@ -44,7 +44,7 @@ class Visualizer:
             They can be subsequently scaled using `scale`.
         '''
         self.scale = scale
-        self.font = ImageFont.truetype('visualization/NotoSansCJKkr-Regular.otf', 32)
+        self.font = ImageFont.truetype('/workspace/modelserver/src/visualization/NotoSansCJKkr-Regular.otf', 32)
 
 
     def clear(self):

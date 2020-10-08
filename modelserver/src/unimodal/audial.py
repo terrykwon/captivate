@@ -7,11 +7,14 @@ import ffmpeg
 
 
 
-def run(url, queue):
+def run(url, queue, barrier):
     ''' Runnable function for an independent process.
         Writes transcription results to `queue`.
     '''
     speech_recognizer = SpeechRecognizer()
+
+    barrier.wait() # wait until the visual process models are initialized
+
     speech_recognizer.transcribe_stream(url, queue)
 
 
@@ -34,6 +37,8 @@ class SpeechRecognizer:
     def __init__(self):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/workspace/modelserver/data/default-demo-app-c4bc3-b67061a9c4b1.json"
         self.client = speech.SpeechClient()
+
+        print('SpeechRecognizer initialized')
 
 
     def transcribe_stream(self, url, queue=None, frame_size=8192, sampling_rate=44100, language_code='ko-KR'):

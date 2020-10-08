@@ -9,10 +9,12 @@ import cv2
 import PIL
 
 
-def run(url, queue):
+def run(url, queue, barrier):
     ''' Main function to be executed by a process.
     '''
     monitor = VisualMonitor(None)
+
+    barrier.wait()
 
     monitor.start(url, queue)
 
@@ -20,7 +22,7 @@ def run(url, queue):
 class VisualMonitor:
 
     def __init__(self, child_embedding):
-        print('Initializing models...')
+        print('Initializing visual models...')
         self.child_embedding = child_embedding
         self.object_detector = ObjectDetector()
         self.gaze_follower = GazeFollower('../model_weights/visatt.pt')
@@ -29,7 +31,7 @@ class VisualMonitor:
 
         self.id_class_mappings = self.object_detector.id_to_classname_mappings()
 
-        print('Initialization done!')
+        print('Initializing visual models done!')
 
 
     def start(self, url, queue):

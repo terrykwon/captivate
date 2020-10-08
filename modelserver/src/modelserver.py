@@ -1,5 +1,5 @@
 import multiprocessing as mp
-from multiprocessing import Process, Lock
+from multiprocessing import Process, Lock, Barrier
 
 from unimodal import audial, visual
 from visualization.visualizer import Visualizer
@@ -29,9 +29,10 @@ class ModelServer:
         self.queue = mp.Queue() # thread-safe
         self.stream_url = stream_url
         # self.lock = Lock()
+        self.barrier = Barrier(2) # barrier that waits for 2 parties
 
-        self.visual_process = Process(target=visual.run, args=(self.stream_url, self.queue,))
-        self.audial_process = Process(target=audial.run, args=(self.stream_url, self.queue,))
+        self.visual_process = Process(target=visual.run, args=(self.stream_url, self.queue, self.barrier))
+        self.audial_process = Process(target=audial.run, args=(self.stream_url, self.queue, self.barrier))
 
         self.visualizer = Visualizer()
 

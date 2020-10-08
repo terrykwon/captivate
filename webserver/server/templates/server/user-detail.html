@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>My test page</title>
+    </head>
+    <body>
+        <h1>User {{ user.username }}</h1>
+        <p>This is my page</p>
+
+        <textarea id="log" cols="100" rows="20"></textarea>
+        <input id="context-input" type="text" size="100" />
+        <input id="context-submit" type="button" value="Send"/>
+
+        <script>
+            let contextInput = document.querySelector('#context-input');
+            let sendButton = document.querySelector('#context-submit');
+            
+            const socket = new WebSocket(
+                'ws://'
+                + window.location.host // local server
+                + '/ws/users/root/records/'
+            );
+
+            socket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                document.querySelector('#log').value += data.context
+            };
+
+            socket.onclose = function(e) {
+                console.error('Chat socket closed unexpectedly');
+            };
+
+            sendButton.onclick = function(e) {
+                const context = contextInput.value;
+                socket.send(JSON.stringify({
+                    'context': context,
+                    'time': new Date().getTime() // unix timestamp
+                }));
+            }
+
+
+
+        </script>
+
+        
+    </body>
+</html>

@@ -1,0 +1,4 @@
+**/.venv/
+modelserver/data/
+modelserver/model_weights/
+**/.ipynb_checkpoints

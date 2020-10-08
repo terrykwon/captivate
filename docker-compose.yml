@@ -1,0 +1,41 @@
+version: '3.7' # docker compose version
+
+services: 
+    # redis:
+    #     image: redis
+    #     ports:
+    #         - 6379:6379
+
+    # web:
+    #     build: ./webserver
+    #     command: python manage.py runserver 0.0.0.0:8000
+    #     volumes:
+    #         - ./webserver:/usr/src/webserver # bind mount host directory to container
+    #     ports:
+    #         - 8000:8000
+    #     env_file:
+    #         - ./.env.dev
+
+    # db:
+    #     image: postgres:12.0-alpine
+    #     volumes: 
+    #         - postgres_data:/var/lib/postgresql/data/ # named volume
+    #     environment:
+    #         - POSTGRES_USER=hello_django
+    #         - POSTGRES_PASSWORD=hello_django
+    #         - POSTGRES_DB=hello_django_dev
+
+    video:
+        build: ./videoserver
+        ports:
+            - 1935:1935
+    
+    # model:
+    #     build: ./modelserver
+    #     ports:
+    #         - 8888:8888
+
+
+# volumes:
+    # postgres_data:
+        

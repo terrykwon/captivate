@@ -1,0 +1,10 @@
+Metadata-Version: 1.2
+Name: visual-attention
+Version: 0.0.1
+Summary: detecting attended visual targets in video
+Home-page: UNKNOWN
+Author: misc
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
+Requires-Python: >=3.6

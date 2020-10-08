@@ -1,0 +1,5 @@
+setup.py
+arcface_pytorch.egg-info/PKG-INFO
+arcface_pytorch.egg-info/SOURCES.txt
+arcface_pytorch.egg-info/dependency_links.txt
+arcface_pytorch.egg-info/top_level.txt

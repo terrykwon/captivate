@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>My test page</title>
+    </head>
+    <body>
+        <h1>User {{ user.username }}</h1>
+        <p>App - Main Page</p>
+
+        <textarea id="log" cols="100" rows="20"></textarea>
+        <br />
+
+        <input id="connect-button" type="button" value="Connect"/>
+        <input id="disconnect-button" type="button" value="Disconnect"/>
+
+        <script>
+            let connectButton = document.querySelector('#connect-button');
+            let disconnectButton = document.querySelector('#disconnect-button');
+            
+            const socket = new WebSocket(
+                'ws://'
+                + window.location.host // local server
+                + '/ws/users/root/process/'
+            );
+
+            socket.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                document.querySelector('#log').value += (data.message + '\n');
+            };
+
+            socket.onclose = function(e) {
+                console.error('Chat socket closed unexpectedly');
+            };
+
+            connectButton.onclick = function(e) {
+                socket.send(JSON.stringify({
+                    'connect': true, // is this the proper way?
+                }));
+            }
+
+            disconnectButton.onclick = function(e) {
+                socket.send(JSON.stringify({ 
+                    'connect': false
+                }));
+            }
+
+        </script>
+    </body>
+</html>

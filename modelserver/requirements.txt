@@ -24,7 +24,7 @@ channels==2.4.0
 chardet==3.0.4
 click==7.1.2
 cloudpickle==1.6.0
-colorama==0.4.3
+colorama==0.4.4
 conda==4.8.3
 conda-build==3.18.11
 conda-package-handling==1.7.0
@@ -36,7 +36,6 @@ daphne==2.5.0
 decorator==4.4.2
 defusedxml==0.6.0
 deprecation==2.1.0
-detectron2==0.2.1+cu101
 Django==3.1
 docutils==0.15.2
 easydict==1.9
@@ -158,7 +157,7 @@ Send2Trash==1.5.0
 service-identity==18.1.0
 Shapely==1.7.1
 six==1.15.0
-smart-open==2.2.1
+smart-open==3.0.0
 smmap==3.0.4
 soupsieve==2.0.1
 sqlparse==0.3.1
@@ -188,7 +187,6 @@ typing-inspect==0.6.0
 tzlocal==2.1
 urllib3==1.25.8
 validators==0.18.1
-visual-attention==0.0.1
 watchdog==0.10.3
 wcwidth==0.2.5
 webencodings==0.5.1

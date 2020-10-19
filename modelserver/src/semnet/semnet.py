@@ -1,4 +1,13 @@
 
+
+
+def lemmatize(word):
+    ''' The word should be converted to "base" form:
+        e.g.) "뛰어갔어" -> "뛰다"
+    '''
+    pass
+
+
 class SemanticNetwork:
     ''' 
         SPECS:

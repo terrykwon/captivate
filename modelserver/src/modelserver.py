@@ -3,6 +3,9 @@ from multiprocessing import Process, Lock, Barrier
 
 from unimodal import audial, visual
 from visualization.visualizer import Visualizer
+from semnet import semnet
+
+import time
 
 import numpy as np
 
@@ -12,17 +15,18 @@ class ModelServer:
         and the 'audial' process. Each process runs streaming inference on the decoded outputs of
         a video stream, which is done by starting decoder subprocesses.
 
-        The inference outputs of the two processes are put into a Queue, where they are consumed
+        The inference outputs of the two processes are put into a `Queue`, where they are consumed
         by the main process.
 
         TODO:
-          - Separate initialization of models, run, and graceful shutdown. Currently one has to
-            re-run the whole pipeline to start inference on a new video, which is very annoying.
+          - Graceful shutdown. 
+            Currently one has to re-run the whole pipeline to start inference on a new video, which is very annoying.
             This can be done with some form of locking? Since the models have to be initialized in
             their respective thread.
 
           - Running the pipeline on a local video file and saving the output, for demo purposes.
-        
+
+          - Context: a set of objects, weighted by importance
     '''
 
     def __init__(self, stream_url):
@@ -35,6 +39,11 @@ class ModelServer:
         self.audial_process = Process(target=audial.run, args=(self.stream_url, self.queue, self.barrier))
 
         self.visualizer = Visualizer()
+
+        # The context is initialized with equal weight for all objects
+        self.objects = ['ball', 'doll', 'bottle', 'dog', 'dinosaur', 'car']
+        self.context = {o: 100 for o in self.objects}
+        self.recommendations = {o: semnet.initialize(o) for o in self.objects} # TODO: nonworking
 
  
     def get_attended_objects(self, focus, object_bboxes, classes):
@@ -58,7 +67,31 @@ class ModelServer:
                 attended_objects.append(classes[i])
 
         return attended_objects
+        
 
+    def update_context(self, modality, objects):
+        ''' Adds weight to the detected objects: by `alpha` for a single visual frame
+            and by `beta` for an audial utterance.
+        '''
+        if modality not in {'visual', 'audial'}:
+            raise ValueError('modality must be one of visual or audial')
+
+        alpha = 5
+        beta = 20
+
+        for o in objects:
+            if modality == 'visual':
+                self.context[o] += alpha
+            elif modality == 'audial':
+                self.context[o] += beta 
+
+
+    def get_recommendations(self):
+        ''' Returns a list of recommended words, weighted by the prevalence of the context.
+            TODO
+        '''
+        pass
+        
 
     def run(self, visualize=False):
         ''' Visualize only works in Jupyter.
@@ -75,12 +108,12 @@ class ModelServer:
         gaze_targets = []
 
         while (1):
+            # This is unnecesssary since queue.get() can be blocking
             # check if something new appeared in queue
-            if self.queue.empty():
-                # sleep here?
-                continue
+            # if self.queue.empty(): 
+            #     time.sleep(0.005)
 
-            result = self.queue.get() # is this blocking? nope
+            result = self.queue.get(block=True, timeout=None) # this blocks until an item is available
 
             if result['from'] == 'image':                    
                 image = result['image']
@@ -93,6 +126,8 @@ class ModelServer:
                 attended_objects = [] # includes both parent & child for now
                 for target in gaze_targets:
                     attended_objects.extend(self.get_attended_objects(target, object_bboxes, object_classnames))
+
+                self.update_context('visual', attended_objects)
 
                 if visualize:
                     self.visualizer.clear()
@@ -108,6 +143,12 @@ class ModelServer:
                 # print('confidence {}: {}'.format(result['confidence'], result['transcript']))
                 # print('audio')
                 transcript = result['transcript']
+
+                if result['is_final'] == True: # is this a string or boolean?
+                    # TODO: pass this to the semantic component
+                    # which will parse the sentence, and match the spoken words against the recommendations
+                    # finally, self.update_context('audial', spoken_objects)
+                    pass
 
 
 if __name__ == '__main__':  

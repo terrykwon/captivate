@@ -1,4 +1,4 @@
 {
     "python.pythonPath": "/opt/conda/bin/python",
-    "python.dataScience.jupyterServerURI": "local"
+    "jupyter.jupyterServerType": "local"
 }

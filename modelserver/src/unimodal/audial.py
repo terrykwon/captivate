@@ -13,7 +13,8 @@ def run(url, queue, barrier):
     '''
     speech_recognizer = SpeechRecognizer()
 
-    barrier.wait() # wait until the visual process models are initialized
+    if barrier is not None: # debug
+        barrier.wait()
 
     speech_recognizer.transcribe_stream(url, queue)
 
@@ -21,15 +22,17 @@ def run(url, queue, barrier):
 class SpeechRecognizer:
     ''' Contains everything to transcribe an audio stream.
 
-        `transcribe_stream()` is the main function, which starts a decoder ffmpeg subprocess
-        and reads the decoded frames in fixed lengths.
+        `transcribe_stream()` is the main function, which starts a decoder
+        ffmpeg subprocess and reads the decoded frames in fixed lengths.
 
         TODO:
-          - Graceful shutdown: currently client.streaming_recognize() throws a timeout error if
-            no requests are sent for a short period of time (a few seconds). Need to catch the error
-            so that a new stream after a while will continue to transcribe.
+          - Graceful shutdown: currently client.streaming_recognize() throws a
+            timeout error if no requests are sent for a short period of time (a
+            few seconds). Need to catch the error so that a new stream after a
+            while will continue to transcribe.
 
-          - Currently, the decoder subprocess is tightly coupled to the SpeechRecognizer. Is this unwise?
+          - Currently, the decoder subprocess is tightly coupled to the
+            SpeechRecognizer. Is this unwise?
 
           - Google app credentials should be set by Docker.
     '''
@@ -41,7 +44,8 @@ class SpeechRecognizer:
         print('SpeechRecognizer initialized')
 
 
-    def transcribe_stream(self, url, queue=None, frame_size=8192, sampling_rate=44100, language_code='ko-KR'):
+    def transcribe_stream(self, url, queue=None, frame_size=8192, 
+                          sampling_rate=44100, language_code='ko-KR'):
         ''' Main function of the class. Writes transcription outputs to `queue`.
 
             frame_size: of a single frame, in bytes
@@ -51,23 +55,25 @@ class SpeechRecognizer:
         stream = self.frame_generator(ffmpeg_process, frame_size)
 
         requests = (speech.StreamingRecognizeRequest(audio_content=chunk)
-                    for chunk in stream) # generator expression, so lazily created
+                    for chunk in stream) # generator expression, lazily created
 
         config = speech.RecognitionConfig(
             encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
             sample_rate_hertz=sampling_rate, # optimally should be 16000
             language_code=language_code)
 
-        streaming_config = speech.StreamingRecognitionConfig(config=config, interim_results=True)
+        streaming_config = speech.StreamingRecognitionConfig(
+                config=config, 
+                interim_results=True)
 
         # streaming_recognize returns a generator.
         responses = self.client.streaming_recognize(streaming_config, requests)
 
         # throws an error if don't send audio for a long time; should catch it
         for response in responses:
-            # Once the transcription has settled, the first result will contain the
-            # is_final result. The other results will be for subsequent portions of
-            # the audio.
+            # Once the transcription has settled, the first result will contain
+            # the is_final result. The other results will be for subsequent
+            # portions of the audio. 
             # print(response)
             for result in response.results:
                 # print('Finished: {}'.format(result.is_final))
@@ -75,9 +81,11 @@ class SpeechRecognizer:
                 alternatives = result.alternatives
 
                 # The alternatives are ordered from most likely to least.
+                # -- UNCOMMENT TO DEBUG -- 
                 # for alternative in alternatives:
-                    # print('Confidence: {}'.format(alternative.confidence))
-                    # print(u'Transcript: {}'.format(alternative.transcript))
+                #     print('Confidence: {}'.format(alternative.confidence))
+                #     print(u'Transcript: {}'.format(alternative.transcript))
+                # ----
 
                 final_result = {
                     'from': 'audio',
@@ -92,9 +100,9 @@ class SpeechRecognizer:
 
 
     def start_decoder_subprocess(self, url):
-        ''' Starts an ffmpeg process that decodes the RTMP stream, then pipes the
-            output to stdout.
-            
+        ''' Starts an ffmpeg process that decodes the RTMP stream, then pipes
+            the output to stdout.
+
             Actually this should work on files as well.
         '''
         args = (
@@ -109,11 +117,12 @@ class SpeechRecognizer:
     def read_single_frame(self, process, frame_size):
         ''' Reads a single frame from the stdout associated with the process,
             and returns it in bytes form.
-        
-            Since process.stdout.read() is blocking, this function should theoretically
-            not read "partial" frames that don't fill `frame_size`. But right now the
-            timeout of read() is too long such that the "end of audio stream" never gets called.
-            Therefore, the timeout of the streaming recognition API should be used to trigger
+
+            Since process.stdout.read() is blocking, this function should
+            theoretically not read "partial" frames that don't fill
+            `frame_size`. But right now the timeout of read() is too long such
+            that the "end of audio stream" never gets called. Therefore, the
+            timeout of the streaming recognition API should be used to trigger
             graceful shutdown.
 
             Audio encoding: mono signed 16-bit PCM (little endian)

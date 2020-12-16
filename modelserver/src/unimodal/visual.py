@@ -8,13 +8,16 @@ import numpy as np
 import cv2
 import PIL
 
+import sys
+
 
 def run(url, queue, barrier):
     ''' Main function to be executed by a process.
     '''
     monitor = VisualMonitor(None)
 
-    barrier.wait()
+    if barrier is not None: # debug
+        barrier.wait()
 
     monitor.start(url, queue)
 
@@ -23,15 +26,23 @@ class VisualMonitor:
 
     def __init__(self, child_embedding):
         print('Initializing visual models...')
-        self.child_embedding = child_embedding
-        self.object_detector = ObjectDetector()
-        self.gaze_follower = GazeFollower('../model_weights/visatt.pt')
-        # self.face_recognizer = FaceRecognizer(child_embedding)
-        self.face_detector = FaceDetector()
 
+        self.child_embedding = child_embedding
+        print('child embedding')
+
+        self.object_detector = ObjectDetector()
         self.id_class_mappings = self.object_detector.id_to_classname_mappings()
+        print('object detector')
+
+        self.gaze_follower = GazeFollower('../model_weights/visatt.pt')
+        print('gaze follower')
+
+        # # self.face_recognizer = FaceRecognizer(child_embedding)
+        self.face_detector = FaceDetector()
+        print('face detector')
 
         print('Initializing visual models done!')
+        sys.stdout.flush() # debug
 
 
     def start(self, url, queue):
@@ -39,11 +50,13 @@ class VisualMonitor:
         
             This should stream final detection outputs somehow.
         '''
+        print('start VisualMonitor')
         
         imagestream = ImageStream(url, buffer_length=8)
         imagestream.start()
 
         while 1:
+            print('frame')
             frames = imagestream.dump()
             frame = frames[-1] # most recent?
             results = self.predict_single_frame(frame)

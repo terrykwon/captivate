@@ -191,7 +191,7 @@ class ModelServer:
                     attended_objects.extend(self.get_attended_objects(
                             target, object_bboxes, object_classnames))
 
-                self.update_context('visual', attended_objects)
+                # self.update_context('visual', attended_objects)
 
                 if visualize:
                     self.visualizer.clear()

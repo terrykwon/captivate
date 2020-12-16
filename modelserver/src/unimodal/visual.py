@@ -56,7 +56,6 @@ class VisualMonitor:
         imagestream.start()
 
         while 1:
-            print('frame')
             frames = imagestream.dump()
             frame = frames[-1] # most recent?
             results = self.predict_single_frame(frame)

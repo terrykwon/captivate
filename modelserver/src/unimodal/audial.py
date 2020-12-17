@@ -33,8 +33,6 @@ class SpeechRecognizer:
 
           - Currently, the decoder subprocess is tightly coupled to the
             SpeechRecognizer. Is this unwise?
-
-          - Google app credentials should be set by Docker.
     '''
 
     def __init__(self):

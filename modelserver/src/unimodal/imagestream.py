@@ -71,7 +71,8 @@ class ImageStream:
         frames = []
 
         while len(self.buffer) == 0:
-            time.sleep(0.01) # this typically only happens for the first frame, before inference
+            # this typically only happens for the first frame, before inference
+            time.sleep(0.01) 
 
         self.lock.acquire()
         while len(self.buffer) > 0:

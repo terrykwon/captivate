@@ -46,9 +46,7 @@ class VisualMonitor:
 
 
     def start(self, url, queue):
-        ''' Main method!!
-        
-            This should stream final detection outputs somehow.
+        ''' Main method
         '''
         print('start VisualMonitor')
         
@@ -99,7 +97,8 @@ class VisualMonitor:
         
         if face_bboxes != []:
             for face_bbox in face_bboxes:
-                focus_point = self.gaze_follower.predict_gaze(frame_pil, face_bbox)
+                focus_point = self.gaze_follower.predict_gaze(frame_pil, 
+                                                              face_bbox)
                 outputs['gaze_targets'].append(focus_point)
 
         return outputs

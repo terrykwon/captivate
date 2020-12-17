@@ -32,11 +32,12 @@ class ModelServer:
     '''
 
     def __init__(self, stream_url):
+        # this method must be only called once
         # multiprocessing.set_start_method('spawn') # CUDA doesn't support fork
+        # but doesn't matter if CUDA is initialized on a single process
 
-        self.queue = Queue() # thread-safe
         self.stream_url = stream_url
-        # self.lock = Lock()
+        self.queue = Queue() # thread-safe
 
         self.barrier = Barrier(2) # barrier that waits for 2 parties
         self.visual_process = Process(target=visual.run, 
@@ -153,12 +154,15 @@ class ModelServer:
         
 
     def run(self, visualize=False):
-        ''' Visualize only works in Jupyter.
+        ''' Main loop.
+            Visualize only works in Jupyter.
         '''
+        # These processes should be joined on error, interrupt, etc.
         self.visual_process.start() # start processes
         self.audial_process.start()
 
-        # self.barrier.wait() # wait for all processes to be initialized
+        # This is unnecessary because the queue.get() below is blocking anyways
+        # self.barrier.wait()
 
         transcript = ''
         image = None
@@ -169,12 +173,6 @@ class ModelServer:
         gaze_targets = []
 
         while (1):
-            # This is unnecesssary since queue.get() can be blocking
-            # check if something new appeared in queue
-            # if self.queue.empty(): 
-            #     time.sleep(0.005)
-            #     continue
-
             # This blocks until an item is available
             result = self.queue.get(block=True, timeout=None) 
 

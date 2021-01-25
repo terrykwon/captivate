@@ -4,7 +4,7 @@ VBR="2500k"
 FPS="15"
 QUAL="medium"
 URL="rtmp://localhost:1935/live/test"
-SOURCE="modelserver/data/test_video_9.mkv"
+SOURCE="/data/pci/video/test_video_9.mkv"
 
 ffmpeg \
     -re -i "$SOURCE" \

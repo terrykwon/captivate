@@ -1,7 +1,6 @@
 import logging
 import time
 
-import os
 
 import subprocess
 from google.cloud import speech
@@ -22,19 +21,15 @@ CHUNK_SIZE = 8192  # 100ms
 
 
 
-RED = "\033[0;31m"
-GREEN = "\033[0;32m"
-YELLOW = "\033[0;33m"
 
-def run(url, queue):
+
+def run(url, queue, barrier):
     """start bidirectional streaming from microphone input to speech API"""
 
     speech_recognizer = ResumableSpeechRecognizer(SAMPLE_RATE, CHUNK_SIZE)
-    print(speech_recognizer.chunk_size)
-    
-    print(YELLOW)
-    print("End (ms)       Transcript Results/Status\n")
-    print("=====================================================\n")
+
+    if barrier is not None: # debug
+        barrier.wait()
     
     with speech_recognizer as recognizer:
         recognizer.transcribe_stream(url, queue)
@@ -71,7 +66,6 @@ class ResumableSpeechRecognizer:
         return self
 
     def __exit__(self, type, value, traceback):
-        ffmpeg_process.terminate()
         self.closed = True
         
         
@@ -115,15 +109,15 @@ class ResumableSpeechRecognizer:
                     self.restart_counter = self.restart_counter + 1
 
                     if not self.last_transcript_was_final:
-                        print("\n")
+                        continue
                     self.new_stream = True
-            except:
+            except Exception:
+                print('end of stream')
                 self.closed = True
                 
         
         
     def start_decoder_subprocess(self, url):
-        self.closed = False
         
         args = (
             ffmpeg
@@ -223,18 +217,15 @@ class ResumableSpeechRecognizer:
         for response in responses:
 
             if get_current_time() - self.start_time > STREAMING_LIMIT:
-                print('start_time')
                 self.start_time = get_current_time()
                 break
 
             if not response.results:
-                print('no_result')
                 continue
 
             result = response.results[0]
 
             if not result.alternatives:
-                print('no_alternatives')
                 continue
             
             transcript = result.alternatives[0].transcript
@@ -261,15 +252,15 @@ class ResumableSpeechRecognizer:
             # line, so subsequent lines will overwrite them.
             
             result_to_queue = {
+                'from': 'audio',
                 'transcript': transcript,
                 'confidence': confidence,
-                'time' : corrected_time
+                'time' : corrected_time,
+                'is_final' : result.is_final
             }
 
             if result.is_final:
 
-                print(GREEN)
-                print("\033[K")
                 if queue:
                     queue.put(result_to_queue)
 
@@ -286,11 +277,9 @@ class ResumableSpeechRecognizer:
 #                     break
 # 
             else:
-#                 print(RED)
-#                 print("\033[K")
                 
-#                 if queue:
-#                     queue.put(result_to_queue)
+                if queue:
+                    queue.put(result_to_queue)
                 
 
                 self.last_transcript_was_final = False

@@ -24,6 +24,7 @@ channels==2.4.0
 chardet==3.0.4
 click==7.1.2
 cloudpickle==1.6.0
+cmake==3.18.0
 colorama==0.4.4
 # conda==4.8.3
 # conda-build==3.18.11
@@ -85,6 +86,7 @@ lazy-object-proxy==1.4.3
 libarchive-c==2.9
 libcst==0.3.10
 lxml==4.5.2
+make
 Markdown==3.2.2
 MarkupSafe==1.1.1
 matplotlib==3.3.1

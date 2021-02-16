@@ -2,4 +2,5 @@
 **/.ipynb_checkpoints
 data/
 modelserver/models/weights
+modelserver/visatt.pt
 

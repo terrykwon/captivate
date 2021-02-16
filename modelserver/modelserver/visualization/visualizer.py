@@ -66,8 +66,10 @@ class Visualizer:
         PIL.Image.fromarray(resized).save(f, 'jpeg')
         IPython.display.display(IPython.display.Image(data=f.getvalue()))
 
+        
 
-    def add_captions(self, image, transcript, attended_objects):
+
+    def add_captions(self, image, transcript, attended_objects, target_spoken):
         width = image.shape[1]
         height = image.shape[0]
         scale = width / 1280 * self.scale
@@ -81,11 +83,47 @@ class Visualizer:
         objects = ', '.join(attended_objects)
         context_string = 'Context: {}'.format(objects)
 
-        box = self.write_text(box, context_string, (20, 210), 
+        box = self.write_text(box, context_string, (20, 110), 
                               Visualizer.COLORS_RGB['pink'])
+
+        targets = ', '.join(target_spoken)
+        target_string = 'Target word: {}'.format(targets)
+
+        box = self.write_text(box, target_string, (20, 210), 
+                              Visualizer.COLORS_RGB['pink'])
+
         stacked = np.vstack((image, box))
 
         return stacked
+    
+    def add_captions_recommend(self, image, transcript, target_spoken, recommendations):
+        width = image.shape[1]
+        height = image.shape[0]
+        scale = width / 1280 * self.scale
+        dy = 50
+        dx = 100
+
+        box = np.zeros((height//2, width, 3)).astype('uint8')
+        box = self.write_text(box, transcript, (20, 10), 
+                              Visualizer.COLORS_RGB['white'])
+
+        targets = ', '.join(target_spoken)
+        target_string = 'Target word: {}'.format(targets)
+
+        box = self.write_text(box, target_string, (20, 110), 
+                              Visualizer.COLORS_RGB['white'])
+        
+        rec_string = ''
+        for k, v in recommendations:
+            rec_string += "{} : {} / ".format(k, ', '.join(v))
+        
+        box = self.write_text(box, rec_string, (20, 210), 
+                              Visualizer.COLORS_RGB['white'])
+        
+        stacked = np.vstack((image, box))
+
+        return stacked
+    
 
 
     def draw_objects(self, image, bboxes, classes, scores):

@@ -22,10 +22,16 @@ from collections import defaultdict
 import re
 
 
+import asyncio
+import websockets
+import json
+
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/workspace/modelserver/default-demo-app-c4bc3-b67061a9c4b1.json"
 
 url = 'rtmp://video:1935/captivate/test'
 # url ='/workspace/modelserver/test.flv'
+
+data_queue = Queue()
 
 
 
@@ -67,15 +73,13 @@ class ModelServer:
 
         self.Khaiii_api = KhaiiiApi()
 
-        self.spoken = defaultdict(int) ## total spoken word for evaluation
 
-        self.objects = ['밀가루','꼭','아빠','chair'] 
+        self.objects = ['빵빵','아빠','밀가루'] 
         self.context = {obj : 1/len(self.objects) for obj in self.objects}
         self.candidates = {
-            '밀가루' : {'별': 0.5, '가다' : 0.3, '꼭' : 0.2},
-            '꼭' : {'손': 0.5,'빨리': 0.3,'엄마': 0.2},
-            'chair' : {'빵빵':0.5, '어디':0.3, '엄마':0.2},
-            '아빠' : {'주다': 0.5 , '누르다' : 0.3, '숟가락': 0.2}
+            '빵빵' : {'어디': 0.1, '가다' : 0.1, '자동차' : 0.1,'발':0.1, '신호등':0.1, '버스':0.1, '앉다':0.1, '비키다':0.1, '길':0.1, '손':0.1},
+            '아빠' : {'손': 0.1,'빨리': 0.1,'엄마': 0.1, '밀가루':0.1, '빵빵':0.1,'아기':0.1,'인형':0.1,'어디':0.1,'남자':0.1,'빠빠이':0.1},
+            '밀가루' : {'꼭': 0.1 , '동그라미' : 0.1, '누르다': 0.1,'숟가락':0.1, '주다':0.1,'날리다':0.1,'식빵':0.1,'음식':0.1,'하얗다':0.1,'손':0.1}
         }
 
 
@@ -123,11 +127,10 @@ class ModelServer:
                 target_dist[t] += 1
                 target_length += 1
         
-        alpha = 0.5
-        beta = 0.2
+        alpha = 0.1
+        beta = 0.1
 
         if target_length != 0:
-
             for o in self.objects:
                 if modality == 'visual':
                     self.context[o] = self.context[o] * (1-alpha) + target_dist[o] * alpha / target_length
@@ -135,7 +138,9 @@ class ModelServer:
                     self.context[o] = self.context[o] * (1-beta) + target_dist[o] * beta / target_length
         
         recommendations = self.get_recommendations()
-    
+        print(self.context)
+        print(self.candidates)
+
         return recommendations
 
     def get_recommendations(self):
@@ -146,15 +151,16 @@ class ModelServer:
             A max heap-like structure would be a lot more convenient than
             recalculating weights and sorting every time...
         '''
-        N = 8 # Total number of words to recommend
+        N = 12 # Total number of words to recommend
         N_h = N/2
         count = N_h
         
-        recommendations = [] # list because ordered
+        recommendations = [] # list to order
 
 
-        for obj in self.context:
-            weight = self.context[obj]
+        for item in sorted(self.context.items(), key = lambda x: x[1], reverse=True):
+            obj = item[0]
+            weight = item[1]
             
             # number of targets to recommend for this word
             n = math.ceil(weight * N_h)
@@ -164,11 +170,11 @@ class ModelServer:
                 n = count
             count -= n
             
-            heap_candidates = heapq.nlargest(n*2, self.candidates[obj].items(), key = lambda x:x[1])
+            heap_candidates = heapq.nlargest(int(n*2), self.candidates[obj].items(), key = lambda x : x[1])
             top_candidates = [ c[0] for c in heap_candidates]
             recommendations.append({'object' : obj, 'target_words' : top_candidates})
         
-        recommendations = sorted(recommendations, key = lambda x: len(x[1]), reverse=True)
+        recommendations = sorted(recommendations, key = lambda x: len(x['target_words']), reverse=True)
         
         recommendation_to_queue = {
             'tag' : 'recommendation',
@@ -189,7 +195,7 @@ class ModelServer:
             The word's relevance should be decreased a bit so that the parent
             diversifies words.
         '''
-        gamma = 1 # amount to decrement the relevance by 
+        gamma = 0.1 # amount to decrement the relevance by 
         
         target_spoken = []
 
@@ -199,8 +205,6 @@ class ModelServer:
                     if cand == word:
                         self.candidates[obj][cand] = round(self.candidates[obj][cand] - gamma,1)
                         target_spoken.append(word)
-                        # update order... so convoluted though...
-                        # heapq.heapify(self.candidates[obj]) ##
             
         if len(target_spoken) > 0:
             
@@ -211,7 +215,6 @@ class ModelServer:
 
             if self.result_queue:
                 self.result_queue.put(target_to_queue)
-        
         return target_spoken
 
     def run(self, visualize=False):
@@ -240,8 +243,7 @@ class ModelServer:
         gaze_targets = []
 
 
-
-        while True:
+        while (1):
             # This blocks until an item is available
             result = self.queue.get(block=True, timeout=None) 
 
@@ -262,7 +264,10 @@ class ModelServer:
                 for o in attended_objects:
                     if o in self.objects:
                         target_objects.append(o)
-                recommendations = self.update_context('visual', target_objects)
+                
+                # update if there's objects
+                if len(target_objects) != 0:
+                    recommendations = self.update_context('visual', target_objects)
 
                 if visualize:
                     self.visualizer.clear()
@@ -274,39 +279,41 @@ class ModelServer:
                                 gaze_targets[i])
 
                     image = self.visualizer.add_captions_recommend(image, transcript, target_spoken, recommendations)
-                    self.visualizer.imshow(image)
+                    # self.visualizer.imshow(image)
+                    self.visualizer.visave(image)
+                target_spoken.clear()
 
             elif result['from'] == 'audio':
                 transcript = result['transcript']
                 
                 spoken_words = self.morph_analyze(transcript)
                 
-                if len(spoken_words) < len(spoken_words_prev):
-                    continue
-                else :
-                    spoken_words_update = spoken_words.copy()
-                    
-                    for word in spoken_words_prev:
-                        if word in spoken_words_update:
-                            spoken_words_update.remove(word)
-                    
-                    # update spoken & target word weight
-                    target_spoken = self.on_spoken(spoken_words_update)
-                    
-                    if result['is_final']: 
-                        spoken_objects = []
-
-                        # update spoken objects list
-                        for word in spoken_words:
-                            self.spoken[word] += 1
-                            if word in self.objects:
-                                spoken_objects.append(word)
+                spoken_words_update = spoken_words.copy()
+                
+                for word in spoken_words_prev:
+                    if word in spoken_words_update:
+                        spoken_words_update.remove(word)
+                
+                # update spoken & target word weight
+                spoken = self.on_spoken(spoken_words_update)
+                if len(spoken) != 0:
+                    target_spoken = spoken
 
 
+                # if transcript is final
+                if result['is_final']: 
+                    spoken_objects = []
 
-                        # update object context
+                    # update spoken objects list
+                    for word in spoken_words:
+                        if word in self.objects:
+                            spoken_objects.append(word)
+
+                    # update object context
+                    if len(spoken_objects) != 0 :
                         recommendations = self.update_context('audial', spoken_objects)
-                        spoken_words.clear()
+                    
+                    spoken_words.clear()
                         
                 spoken_words_prev = spoken_words
                         
@@ -338,21 +345,33 @@ def start(url, queue, is_visualize):
 
     server.run(visualize=is_visualize)
 
+async def pop_and_send(websocket, path):
+    print("websocket start!")
+
+    while(1):
+        data = data_queue.get(block=True)
+        data_json = json.dumps(data,ensure_ascii=False)
+
+        await websocket.send(data_json)
+        print('data_send!')
+        print(data_json)
         
 
 if __name__ == '__main__': 
-    queue = Queue()
     
     server_process = Process(target=start, 
-                args=(url, queue, False))
+                args=(url, data_queue, True))
     
     server_process.start()
 
-    while True:
-        result = queue.get(block=True)
-        print(result)
-        print('\n')
-        
+    # while (1):
+    #     result = data_queue.get(block=True)
+        # print(result)
+        # print('\n')
+    websocket_server = websockets.serve(pop_and_send, '0.0.0.0', 8888, ping_interval = None)
+
+    asyncio.get_event_loop().run_until_complete(websocket_server)
+    asyncio.get_event_loop().run_forever()
     
     
     

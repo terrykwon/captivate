@@ -48,6 +48,8 @@ class Visualizer:
         self.scale = scale
         self.font = ImageFont.truetype('/workspace/modelserver/modelserver/visualization/NotoSansCJKkr-Regular.otf', 32)
 
+        self.fourcc = cv2.VideoWriter_fourcc(*'XVID')
+        self.out = cv2.VideoWriter('/workspace/modelserver/output.avi',self.fourcc, 5.0, (640,720))
 
     def clear(self):
         IPython.display.clear_output(wait=True)
@@ -65,6 +67,27 @@ class Visualizer:
         resized = cv2.resize(image, (width, height))
         PIL.Image.fromarray(resized).save(f, 'jpeg')
         IPython.display.display(IPython.display.Image(data=f.getvalue()))
+
+    def imsave(self, image, width=640):
+        ''' Saves image in container
+        '''
+        scale = width / image.shape[1] # (height, width, channels)! 
+
+        width = int(image.shape[1] * scale)
+        height = int(image.shape[0] * scale)
+        resized = cv2.resize(image, (width, height))
+        PIL.Image.fromarray(resized).save('/workspace/modelserver/modelserver/first.jpeg')
+
+    def visave(self, image):
+        
+        width = 640
+        height = 720
+        resized = cv2.resize(image, (width, height))
+        # image_resized = PIL.Image.fromarray(resized)
+        self.out.write(cv2.cvtColor(resized,cv2.COLOR_BGR2RGB))
+        
+
+        
 
         
 
@@ -103,22 +126,37 @@ class Visualizer:
         dy = 50
         dx = 100
 
-        box = np.zeros((height//2, width, 3)).astype('uint8')
+        ### transcript
+        box = np.zeros((height, width, 3)).astype('uint8')
         box = self.write_text(box, transcript, (20, 10), 
                               Visualizer.COLORS_RGB['white'])
 
-        targets = ', '.join(target_spoken)
-        target_string = 'Target word: {}'.format(targets)
+        ### target spoken
+        box = self.write_text(box, 'Target words', (20, 110), 
+                              Visualizer.COLORS_RGB['pink'])
 
-        box = self.write_text(box, target_string, (20, 110), 
+        target_string = ''
+        for t in target_spoken:
+            target_string += "{:5}".format(t)
+
+        box = self.write_text(box, target_string, (20, 160), 
                               Visualizer.COLORS_RGB['white'])
+        
+        ### recommendation
+        box = self.write_text(box, 'Recommendation', (20, 260), 
+                              Visualizer.COLORS_RGB['pink'])
         
         rec_string = ''
-        for k, v in recommendations:
-            rec_string += "{} : {} / ".format(k, ', '.join(v))
-        
-        box = self.write_text(box, rec_string, (20, 210), 
-                              Visualizer.COLORS_RGB['white'])
+        rec_y = 260
+        for item in recommendations:
+            obj_len = "{:<"+str(15-3*len(item['object']))+"}|"
+            rec_string = obj_len.format(item['object'])
+            for t in item['target_words']:
+                tar_len = "{:^"+str(20-3*len(t))+"}|"
+                rec_string += tar_len.format(t)
+            box = self.write_text(box, rec_string, (20, rec_y+dy), 
+                                Visualizer.COLORS_RGB['white'])
+            rec_y += dy
         
         stacked = np.vstack((image, box))
 
@@ -154,8 +192,9 @@ class Visualizer:
 
             left, top, right, bottom = np.around(bbox).astype('int')
 
-            image = cv2.rectangle(image, (left, top), (right, bottom), 
-                    box_color, box_thickness)
+            ## remove object rectangle for demo
+            # image = cv2.rectangle(image, (left, top), (right, bottom), 
+                    # box_color, box_thickness)
 
             score = scores[i]
             text_bottom_left = (left, top)
@@ -194,7 +233,7 @@ class Visualizer:
 
         image_pil = PIL.Image.fromarray(image)
         draw = ImageDraw.Draw(image_pil)
-        wrapped = textwrap.wrap(text, width=40)
+        wrapped = textwrap.wrap(text, width=100)
 
         for line in wrapped:
             y += dy

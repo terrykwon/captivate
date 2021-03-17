@@ -3,4 +3,7 @@
 data/
 modelserver/models/weights
 modelserver/visatt.pt
+modelserver/*.pt
+modelserver/*.pth
+
 

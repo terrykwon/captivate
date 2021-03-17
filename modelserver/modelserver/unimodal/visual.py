@@ -14,7 +14,9 @@ import sys
 def run(url, queue, barrier):
     ''' Main function to be executed by a process.
     '''
-    monitor = VisualMonitor(None)
+    gpu_id = int(url[-1]) // 2
+
+    monitor = VisualMonitor(None, gpu_id)
 
     if barrier is not None: # debug
         barrier.wait()
@@ -24,7 +26,7 @@ def run(url, queue, barrier):
 
 class VisualMonitor:
 
-    def __init__(self, child_embedding):
+    def __init__(self, child_embedding, gpu_id):
         print('Initializing visual models...')
 
         self.child_embedding = child_embedding
@@ -38,7 +40,7 @@ class VisualMonitor:
         print('gaze follower')
 
         # # self.face_recognizer = FaceRecognizer(child_embedding)
-        self.face_detector = FaceDetector()
+        self.face_detector = FaceDetector(gpu_id)
         print('face detector')
 
         print('Initializing visual models done!')
@@ -53,15 +55,17 @@ class VisualMonitor:
         imagestream = ImageStream(url, buffer_length=8)
         imagestream.start()
 
+        camera_id = url[-1]
+
         while 1:
             frames = imagestream.dump()
             frame = frames[-1] # most recent?
-            results = self.predict_single_frame(frame)
+            results = self.predict_single_frame(frame, camera_id)
 
             queue.put(results)
 
 
-    def predict_single_frame(self, frame):
+    def predict_single_frame(self, frame, camera_id):
         """ Predicts the child's attended target for a single frame,
             and returns relevant outputs from intermediate predictions as well.
 
@@ -69,6 +73,7 @@ class VisualMonitor:
         """
         outputs = {
             'from': 'image',
+            'camera_id': camera_id,
             'image': frame,
             'object_bboxes': [],
             'object_confidences': [],

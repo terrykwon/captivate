@@ -6,11 +6,11 @@ import numpy as np
 
 class FaceDetector(BasePredictor):
 
-    def __init__(self):
+    def __init__(self, gpu_id):
         self.model = insightface.model_zoo.get_model('retinaface_r50_v1')
 
         # ctx_id: gpu number, non-max suppression threshold, no idea
-        self.model.prepare(ctx_id=0, nms=0.4)
+        self.model.prepare(ctx_id=gpu_id, nms=0.4)
 
 
     def predict(self, image):

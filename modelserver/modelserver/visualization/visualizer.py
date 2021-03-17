@@ -48,8 +48,8 @@ class Visualizer:
         self.scale = scale
         self.font = ImageFont.truetype('/workspace/modelserver/modelserver/visualization/NotoSansCJKkr-Regular.otf', 32)
 
-        self.fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        self.out = cv2.VideoWriter('/workspace/modelserver/output.avi',self.fourcc, 5.0, (640,720))
+        self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        self.out = cv2.VideoWriter('/workspace/modelserver/output.mp4',self.fourcc, 5.0, (640,720))
 
     def clear(self):
         IPython.display.clear_output(wait=True)

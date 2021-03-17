@@ -1,8 +1,8 @@
+import os
+
 # from multiprocessing import Process, Lock, Barrier, Queue
 from torch import multiprocessing
 from torch.multiprocessing import Process, Lock, Barrier, Queue
-
-import os
 
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
@@ -27,6 +27,7 @@ import websockets
 import json
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/workspace/modelserver/default-demo-app-c4bc3-b67061a9c4b1.json"
+
 
 url = 'rtmp://video:1935/captivate/test'
 # url ='/workspace/modelserver/test.flv'
@@ -64,25 +65,66 @@ class ModelServer:
         self.queue = Queue() # thread-safe
 
 
-        self.visual_process = Process(target=visual.run, 
-                args=(self.stream_url, self.queue, None))
+        self.visual_process_1 = Process(target=visual.run, 
+                args=(self.stream_url+'1', self.queue, None))
+
+        self.visual_process_2 = Process(target=visual.run, 
+                args=(self.stream_url+'2', self.queue, None))
+        
+        self.visual_process_3 = Process(target=visual.run, 
+                args=(self.stream_url+'3', self.queue, None))
+        
         self.audial_process = Process(target=audial_infinite.run, 
-                args=(self.stream_url, self.queue, None))
+                args=(self.stream_url+'1', self.queue, None))
 
         self.visualizer = Visualizer()
 
         self.Khaiii_api = KhaiiiApi()
 
 
-        self.objects = ['빵빵','아빠','밀가루'] 
+        self.objects = ['공','신발','숟가락','그릇','포크','버스','자전거','물고기','강아지','고양이','거울','칫솔','양말','선물','꽃','텔레비전']
+        self.visual_classes = {
+            'ball' : '공',
+            'dog' : '강아지',
+            'cat' : '고양이',
+            'shoe' : '신발',
+            'spoon' : '숟가락',
+            'bowl' : '그릇',
+            'fork' : '포크',
+            'bus' : '버스',
+            'tv' : '텔레비전',
+            'bicycle' : '자전거',
+            'fish' : '물고기',
+            'mirror' : '거울',
+            'toothbrush' : '칫솔',
+            'sock' : '양말',
+            'gift' : '선물',
+            'flower' : '꽃'
+        }
+ 
         self.context = {obj : 1/len(self.objects) for obj in self.objects}
         self.candidates = {
-            '빵빵' : {'어디': 0.1, '가다' : 0.1, '자동차' : 0.1,'발':0.1, '신호등':0.1, '버스':0.1, '앉다':0.1, '비키다':0.1, '길':0.1, '손':0.1},
-            '아빠' : {'손': 0.1,'빨리': 0.1,'엄마': 0.1, '밀가루':0.1, '빵빵':0.1,'아기':0.1,'인형':0.1,'어디':0.1,'남자':0.1,'빠빠이':0.1},
-            '밀가루' : {'꼭': 0.1 , '동그라미' : 0.1, '누르다': 0.1,'숟가락':0.1, '주다':0.1,'날리다':0.1,'식빵':0.1,'음식':0.1,'하얗다':0.1,'손':0.1}
+            '공' : {'치다': 1, '던지다' : 1, '탁탁' : 1,'때리다':1,'박수치다':1, '올라가다':1, '발':1,'망치':1, '테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '신발' : {'신다': 1,'옷': 1,'바지': 1, '운동화':1, '입다':1,'양말':1,'옹기종기':1,'구두':1, '테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '숟가락' : {'젓가락': 1 , '포크' : 1, '접시': 1,'꼭꼭':1, '딸가닥':1,'컵':1,'밥':1,'동동':1, '테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '그릇' : {'접시' : 1, '밥' : 1,'김치' : 1,'라면' : 1, '뚝딱뚝딱' : 1, '젓가락' : 1,'수박' : 1,'전자레인지' : 1, '테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '포크' : {'숟가락' : 1, '가위' : 1, '젓가락' : 1, '딸가닥' : 1, '빗자루' : 1, '쟁반' : 1, '자르다' : 1, '뚝딱뚝딱' : 1 ,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '버스' : {'기차' : 1, '택시' : 1, '타다' : 1, '내리다' : 1, '공항' : 1, '헬리콥터' : 1, '아슬아슬' : 1, '뚜벅뚜벅' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '자전거' : {'씽씽' : 1, '오토바이' : 1, '타다' : 1, '쌩쌩' : 1, '버스' : 1, '걷다' : 1, '운동화' : 1, '다니다' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,} ,
+            '물고기' : {'바다' : 1,'토끼' : 1,'미끄럼틀' : 1, '생선' : 1, '거북이' : 1, '염소' : 1, '뱀' : 1, '수영장' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '강아지' : {'고양이' : 1, '개' : 1, '귀엽다' : 1, '동물' : 1, '빗다' : 1, '거북이' : 1, '뱀' : 1, '토끼' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '고양이' : {'개' : 1, '귀엽다' : 1, '동물' : 1, '토끼' : 1, '쥐' : 1, '거북이' : 1, '빗다' : 1, '염소' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '거울' : {'빗다' : 1,'얼굴' : 1,'입다' : 1,'옷장' : 1,'세탁기' : 1,'꾹' : 1,'식탁' : 1,'예쁘다' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '칫솔' : {'비누' : 1,'부릉' : 1,'걸레' : 1,'닦다' : 1,'껄떡껄떡' : 1,'찰랑찰랑' : 1,'수건' : 1,'빗자루' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '양말' : {'모자' : 1,'신다' : 1,'옷' : 1,'장갑' : 1,'구두' : 1,'신발' : 1,'후드득' : 1,'바지' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '선물' : {'생일' : 1, '잠옷' : 1, '주다' : 1,'상자' : 1,'사다' : 1,'크리스마스' : 1,'옹기종기' : 1,'열쇠' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '꽃' : {'활짝' : 1,'나비' : 1,'나무' : 1,'봄' : 1,'예쁘다' : 1,'가을' : 1,'쫙' : 1,'목도리' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
+            '텔레비전' : {'틀다' : 1,'보다' : 1,'라디오' : 1,'에어컨' : 1,'켜다' : 1,'맛보다' : 1,'핸드폰' : 1,'집' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,}
         }
 
-
+        ## init recommendation (first send)
+        self.get_recommendations()
+        
         print('Init modelserver done')
 
  
@@ -127,7 +169,7 @@ class ModelServer:
                 target_dist[t] += 1
                 target_length += 1
         
-        alpha = 0.1
+        alpha = 0.017
         beta = 0.1
 
         if target_length != 0:
@@ -138,8 +180,6 @@ class ModelServer:
                     self.context[o] = self.context[o] * (1-beta) + target_dist[o] * beta / target_length
         
         recommendations = self.get_recommendations()
-        print(self.context)
-        print(self.candidates)
 
         return recommendations
 
@@ -195,7 +235,7 @@ class ModelServer:
             The word's relevance should be decreased a bit so that the parent
             diversifies words.
         '''
-        gamma = 0.1 # amount to decrement the relevance by 
+        gamma = 0.01 # amount to decrement the relevance by 
         
         target_spoken = []
 
@@ -222,7 +262,11 @@ class ModelServer:
             Visualize only works in Jupyter.
         '''
         # These processes should be joined on error, interrupt, etc.
-        self.visual_process.start() # start processes
+        self.visual_process_1.start() # start processes
+        self.visual_process_2.start() # start processes
+        self.visual_process_3.start() # start processes
+
+
         self.audial_process.start()
         print('process start')
         # This is unnecessary because the queue.get() below is blocking anyways
@@ -254,6 +298,8 @@ class ModelServer:
                 object_classnames = result['object_classnames']
                 face_bboxes = result['face_bboxes']
                 gaze_targets = result['gaze_targets']
+                camera_id = result['camera_id']
+
 
                 attended_objects = [] # includes both parent & child for now
                 for target in gaze_targets:
@@ -262,14 +308,15 @@ class ModelServer:
                 
                 target_objects = []
                 for o in attended_objects:
-                    if o in self.objects:
-                        target_objects.append(o)
+                    if o in self.visual_classes.keys():
+                        object_korean = self.visual_classes[o]
+                        target_objects.append(object_korean)
                 
                 # update if there's objects
                 if len(target_objects) != 0:
                     recommendations = self.update_context('visual', target_objects)
 
-                if visualize:
+                if visualize and camera_id == '2':
                     self.visualizer.clear()
                     self.visualizer.draw_objects(image, object_bboxes, 
                             object_classnames, object_confidences)
@@ -353,8 +400,6 @@ async def pop_and_send(websocket, path):
         data_json = json.dumps(data,ensure_ascii=False)
 
         await websocket.send(data_json)
-        print('data_send!')
-        print(data_json)
         
 
 if __name__ == '__main__': 
@@ -364,14 +409,14 @@ if __name__ == '__main__':
     
     server_process.start()
 
-    # while (1):
-    #     result = data_queue.get(block=True)
-        # print(result)
-        # print('\n')
-    websocket_server = websockets.serve(pop_and_send, '0.0.0.0', 8888, ping_interval = None)
+    while (1):
+        result = data_queue.get(block=True)
+        print(result)
+        print('\n')
+#     websocket_server = websockets.serve(pop_and_send, '0.0.0.0', 8888, ping_interval = None)
 
-    asyncio.get_event_loop().run_until_complete(websocket_server)
-    asyncio.get_event_loop().run_forever()
+#     asyncio.get_event_loop().run_until_complete(websocket_server)
+#     asyncio.get_event_loop().run_forever()
     
     
     

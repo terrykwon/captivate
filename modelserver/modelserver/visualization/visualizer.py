@@ -49,7 +49,8 @@ class Visualizer:
         self.font = ImageFont.truetype('/workspace/modelserver/modelserver/visualization/NotoSansCJKkr-Regular.otf', 32)
 
         self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        self.out = cv2.VideoWriter('/workspace/modelserver/output.mp4',self.fourcc, 5.0, (640,720))
+        self.out = cv2.VideoWriter('/workspace/modelserver/output.mp4',self.fourcc, 30.0, (640,720))
+        self.curr_frame_num = 0
 
     def clear(self):
         IPython.display.clear_output(wait=True)
@@ -78,13 +79,17 @@ class Visualizer:
         resized = cv2.resize(image, (width, height))
         PIL.Image.fromarray(resized).save('/workspace/modelserver/modelserver/first.jpeg')
 
-    def visave(self, image):
-        
-        width = 640
-        height = 720
-        resized = cv2.resize(image, (width, height))
-        # image_resized = PIL.Image.fromarray(resized)
-        self.out.write(cv2.cvtColor(resized,cv2.COLOR_BGR2RGB))
+    def visave(self, image, frame_num):
+        if self.curr_frame_num == 0 or self.curr_frame_num == 1 :
+            self.curr_frame_num = frame_num
+        else : 
+            width = 640
+            height = 720
+            resized = cv2.resize(image, (width, height))
+            
+            while (self.curr_frame_num <= frame_num ):
+                self.out.write(cv2.cvtColor(resized,cv2.COLOR_BGR2RGB))
+                self.curr_frame_num += 1
         
 
         

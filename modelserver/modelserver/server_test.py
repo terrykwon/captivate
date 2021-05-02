@@ -68,11 +68,11 @@ class ModelServer:
         self.visual_process_1 = Process(target=visual.run, 
                 args=(self.stream_url+'1', self.queue, None))
 
-        self.visual_process_2 = Process(target=visual.run, 
-                args=(self.stream_url+'2', self.queue, None))
+        # self.visual_process_2 = Process(target=visual.run, 
+        #         args=(self.stream_url+'2', self.queue, None))
         
-        self.visual_process_3 = Process(target=visual.run, 
-                args=(self.stream_url+'3', self.queue, None))
+        # self.visual_process_3 = Process(target=visual.run, 
+        #         args=(self.stream_url+'3', self.queue, None))
         
         self.audial_process = Process(target=audial_infinite.run, 
                 args=(self.stream_url+'1', self.queue, None))
@@ -263,8 +263,8 @@ class ModelServer:
         '''
         # These processes should be joined on error, interrupt, etc.
         self.visual_process_1.start() # start processes
-        self.visual_process_2.start() # start processes
-        self.visual_process_3.start() # start processes
+        # self.visual_process_2.start() # start processes
+        # self.visual_process_3.start() # start processes
 
 
         self.audial_process.start()
@@ -299,6 +299,7 @@ class ModelServer:
                 face_bboxes = result['face_bboxes']
                 gaze_targets = result['gaze_targets']
                 camera_id = result['camera_id']
+                frame_num = result['frame_num']
 
 
                 attended_objects = [] # includes both parent & child for now
@@ -316,7 +317,7 @@ class ModelServer:
                 if len(target_objects) != 0:
                     recommendations = self.update_context('visual', target_objects)
 
-                if visualize and camera_id == '2':
+                if visualize and camera_id == '1':
                     self.visualizer.clear()
                     self.visualizer.draw_objects(image, object_bboxes, 
                             object_classnames, object_confidences)
@@ -327,7 +328,7 @@ class ModelServer:
 
                     image = self.visualizer.add_captions_recommend(image, transcript, target_spoken, recommendations)
                     # self.visualizer.imshow(image)
-                    self.visualizer.visave(image)
+                    self.visualizer.visave(image, frame_num)
                 target_spoken.clear()
 
             elif result['from'] == 'audio':
@@ -337,6 +338,7 @@ class ModelServer:
                 
                 spoken_words_update = spoken_words.copy()
                 
+                ## TODO : change to regex  
                 for word in spoken_words_prev:
                     if word in spoken_words_update:
                         spoken_words_update.remove(word)

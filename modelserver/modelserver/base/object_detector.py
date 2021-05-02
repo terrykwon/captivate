@@ -17,7 +17,7 @@ class ObjectDetector(BasePredictor):
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7  # set threshold for this model
         # Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
         # cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml")  # Let training initialize from model zoo
-        cfg.MODEL.WEIGHTS = '/workspace/modelserver/pci_nobicycle.pth'
+        cfg.MODEL.WEIGHTS = '/workspace/modelserver/models/weights/object_wtbicycle.pth'
         cfg.MODEL.ROI_HEADS.NUM_CLASSES = 16
         self.model = DefaultPredictor(cfg)
 

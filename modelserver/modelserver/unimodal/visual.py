@@ -14,7 +14,7 @@ import sys
 def run(url, queue, barrier):
     ''' Main function to be executed by a process.
     '''
-    gpu_id = int(url[-1]) // 2
+    gpu_id = int(url[-1]) % 4
 
     monitor = VisualMonitor(None, gpu_id)
 
@@ -60,12 +60,16 @@ class VisualMonitor:
         while 1:
             frames = imagestream.dump()
             frame = frames[-1] # most recent?
-            results = self.predict_single_frame(frame, camera_id)
+            results = self.predict_single_frame(frame[0])
+
+            results['frame_num'] = frame[1]
+            results['camera_id'] = camera_id
 
             queue.put(results)
 
 
-    def predict_single_frame(self, frame, camera_id):
+
+    def predict_single_frame(self, frame):
         """ Predicts the child's attended target for a single frame,
             and returns relevant outputs from intermediate predictions as well.
 
@@ -73,7 +77,6 @@ class VisualMonitor:
         """
         outputs = {
             'from': 'image',
-            'camera_id': camera_id,
             'image': frame,
             'object_bboxes': [],
             'object_confidences': [],

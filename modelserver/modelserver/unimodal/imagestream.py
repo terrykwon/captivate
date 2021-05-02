@@ -54,8 +54,9 @@ class ImageStream:
                 return
 
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_num = int(self.video_capture.get(cv2.CAP_PROP_POS_FRAMES))
 
-            self.buffer.append(frame)
+            self.buffer.append((frame,frame_num))
             self.lock.release()
 
             time.sleep(0.01) # give time for dump() to acquire lock

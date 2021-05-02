@@ -27,7 +27,7 @@ test_transforms = _get_transform()
 
 class GazeFollower(BasePredictor):
 
-    def __init__(self, weight_path='/workspace/modelserver/visatt.pt'):
+    def __init__(self, weight_path='/workspace/modelserver/models/weights/visatt.pt'):
         # Visual attention
         self.model = ModelSpatial()
         state_dict = self.model.state_dict()

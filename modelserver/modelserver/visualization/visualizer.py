@@ -39,7 +39,7 @@ class Visualizer:
                   for (k,v) in COLORS_HEX.items()}
 
 
-    def __init__(self, scale=1.0):
+    def __init__(self, camera_id, scale=1.0):
         ''' Font sizes and line widths are normalized, i.e. resized in
             proportion to the image dimensions.
 
@@ -49,11 +49,11 @@ class Visualizer:
         self.font = ImageFont.truetype('/workspace/modelserver/modelserver/visualization/NotoSansCJKkr-Regular.otf', 32)
 
         self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        self.out = cv2.VideoWriter('/workspace/modelserver/output.mp4',self.fourcc, 30.0, (640,720))
+        self.out = cv2.VideoWriter('/workspace/modelserver/output'+str(camera_id)+'.mp4',self.fourcc, 30.0, (1280,1080))
         self.curr_frame_num = 0
 
-    def clear(self):
-        IPython.display.clear_output(wait=True)
+    # def clear(self):
+        # IPython.display.clear_output(wait=True)
 
 
     def imshow(self, image, width=640):
@@ -83,50 +83,18 @@ class Visualizer:
         if self.curr_frame_num == 0 or self.curr_frame_num == 1 :
             self.curr_frame_num = frame_num
         else : 
-            width = 640
-            height = 720
+            width = 1280
+            height = 1080
             resized = cv2.resize(image, (width, height))
             
             while (self.curr_frame_num <= frame_num ):
                 self.out.write(cv2.cvtColor(resized,cv2.COLOR_BGR2RGB))
                 self.curr_frame_num += 1
         
-
-        
-
-        
-
-
-    def add_captions(self, image, transcript, attended_objects, target_spoken):
-        width = image.shape[1]
-        height = image.shape[0]
-        scale = width / 1280 * self.scale
-        dy = 50
-        dx = 100
-
-        box = np.zeros((height//2, width, 3)).astype('uint8')
-        box = self.write_text(box, transcript, (20, 10), 
-                              Visualizer.COLORS_RGB['white'])
-
-        objects = ', '.join(attended_objects)
-        context_string = 'Context: {}'.format(objects)
-
-        box = self.write_text(box, context_string, (20, 110), 
-                              Visualizer.COLORS_RGB['pink'])
-
-        targets = ', '.join(target_spoken)
-        target_string = 'Target word: {}'.format(targets)
-
-        box = self.write_text(box, target_string, (20, 210), 
-                              Visualizer.COLORS_RGB['pink'])
-
-        stacked = np.vstack((image, box))
-
-        return stacked
     
-    def add_captions_recommend(self, image, transcript, target_spoken, recommendations):
+    def add_captions_recommend(self, image, transcript, target_spoken):
         width = image.shape[1]
-        height = image.shape[0]
+        height = image.shape[0] // 2
         scale = width / 1280 * self.scale
         dy = 50
         dx = 100
@@ -148,20 +116,29 @@ class Visualizer:
                               Visualizer.COLORS_RGB['white'])
         
         ### recommendation
-        box = self.write_text(box, 'Recommendation', (20, 260), 
-                              Visualizer.COLORS_RGB['pink'])
+        # box = self.write_text(box, 'Recommendation', (20, 260), 
+        #                       Visualizer.COLORS_RGB['pink'])
         
-        rec_string = ''
-        rec_y = 260
-        for item in recommendations:
-            obj_len = "{:<"+str(15-3*len(item['object']))+"}|"
-            rec_string = obj_len.format(item['object'])
-            for t in item['target_words']:
-                tar_len = "{:^"+str(20-3*len(t))+"}|"
-                rec_string += tar_len.format(t)
-            box = self.write_text(box, rec_string, (20, rec_y+dy), 
-                                Visualizer.COLORS_RGB['white'])
-            rec_y += dy
+        # rec_string = ''
+        # rec_y = 260
+        # for item in recommendations:
+        #     obj_len = "{:<"+str(15-3*len(item['object']))+"}|"
+        #     rec_string = obj_len.format(item['object'])
+            
+        #     for i, t in enumerate(item['target_words']):
+        #         if i != 0 and i % 6 == 0:
+        #             box = self.write_text(box, rec_string, (20, rec_y+dy), 
+        #                         Visualizer.COLORS_RGB['white'])
+        #             rec_y += dy
+                    
+        #             rec_string = "               |"
+                    
+        #         tar_len = "{:^"+str(20-3*len(t))+"}|"
+        #         rec_string += tar_len.format(t)
+
+        #     box = self.write_text(box, rec_string, (20, rec_y+dy), 
+        #                         Visualizer.COLORS_RGB['white'])
+        #     rec_y += dy
         
         stacked = np.vstack((image, box))
 

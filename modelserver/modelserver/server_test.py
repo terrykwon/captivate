@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 from modelserver.unimodal import audial_infinite, visual
 from modelserver.visualization.visualizer import Visualizer
+from guidance import Guidance
 
 import time
 import math
@@ -21,8 +22,8 @@ from khaiii import KhaiiiApi
 from collections import defaultdict
 import re
 
-
 import asyncio
+from asyncio.tasks import wait_for
 import websockets
 import json
 
@@ -30,7 +31,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/workspace/modelserver/default-d
 
 
 url = 'rtmp://video:1935/captivate/test'
-# url ='/workspace/modelserver/test.flv'
+guide_file_path = 'demo_2.csv'
 
 data_queue = Queue()
 
@@ -64,25 +65,22 @@ class ModelServer:
         self.stream_url = stream_url
         self.queue = Queue() # thread-safe
 
-
-        self.visual_process_1 = Process(target=visual.run, 
-                args=(self.stream_url+'1', self.queue, None))
-
-        # self.visual_process_2 = Process(target=visual.run, 
-        #         args=(self.stream_url+'2', self.queue, None))
         
-        # self.visual_process_3 = Process(target=visual.run, 
-        #         args=(self.stream_url+'3', self.queue, None))
-        
+        self.visual_process = [ Process(target=visual.run, 
+                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(1) ]
+
         self.audial_process = Process(target=audial_infinite.run, 
-                args=(self.stream_url+'1', self.queue, None))
+                args=('rtmp://video:1935/captivate/test_audio', self.queue, None), daemon=True)
 
-        self.visualizer = Visualizer()
+        
+        self.visualizer = [ Visualizer(camera_id) for camera_id in range(1) ]
 
         self.Khaiii_api = KhaiiiApi()
 
+        self.guidance = Guidance(guide_file_path)
 
-        self.objects = ['공','신발','숟가락','그릇','포크','버스','자전거','물고기','강아지','고양이','거울','칫솔','양말','선물','꽃','텔레비전']
+        self.objects = self.guidance.get_object_names()
+
         self.visual_classes = {
             'ball' : '공',
             'dog' : '강아지',
@@ -101,33 +99,23 @@ class ModelServer:
             'gift' : '선물',
             'flower' : '꽃'
         }
- 
-        self.context = {obj : 1/len(self.objects) for obj in self.objects}
-        self.candidates = {
-            '공' : {'치다': 1, '던지다' : 1, '탁탁' : 1,'때리다':1,'박수치다':1, '올라가다':1, '발':1,'망치':1, '테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '신발' : {'신다': 1,'옷': 1,'바지': 1, '운동화':1, '입다':1,'양말':1,'옹기종기':1,'구두':1, '테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '숟가락' : {'젓가락': 1 , '포크' : 1, '접시': 1,'꼭꼭':1, '딸가닥':1,'컵':1,'밥':1,'동동':1, '테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '그릇' : {'접시' : 1, '밥' : 1,'김치' : 1,'라면' : 1, '뚝딱뚝딱' : 1, '젓가락' : 1,'수박' : 1,'전자레인지' : 1, '테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '포크' : {'숟가락' : 1, '가위' : 1, '젓가락' : 1, '딸가닥' : 1, '빗자루' : 1, '쟁반' : 1, '자르다' : 1, '뚝딱뚝딱' : 1 ,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '버스' : {'기차' : 1, '택시' : 1, '타다' : 1, '내리다' : 1, '공항' : 1, '헬리콥터' : 1, '아슬아슬' : 1, '뚜벅뚜벅' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '자전거' : {'씽씽' : 1, '오토바이' : 1, '타다' : 1, '쌩쌩' : 1, '버스' : 1, '걷다' : 1, '운동화' : 1, '다니다' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,} ,
-            '물고기' : {'바다' : 1,'토끼' : 1,'미끄럼틀' : 1, '생선' : 1, '거북이' : 1, '염소' : 1, '뱀' : 1, '수영장' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '강아지' : {'고양이' : 1, '개' : 1, '귀엽다' : 1, '동물' : 1, '빗다' : 1, '거북이' : 1, '뱀' : 1, '토끼' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '고양이' : {'개' : 1, '귀엽다' : 1, '동물' : 1, '토끼' : 1, '쥐' : 1, '거북이' : 1, '빗다' : 1, '염소' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '거울' : {'빗다' : 1,'얼굴' : 1,'입다' : 1,'옷장' : 1,'세탁기' : 1,'꾹' : 1,'식탁' : 1,'예쁘다' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '칫솔' : {'비누' : 1,'부릉' : 1,'걸레' : 1,'닦다' : 1,'껄떡껄떡' : 1,'찰랑찰랑' : 1,'수건' : 1,'빗자루' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '양말' : {'모자' : 1,'신다' : 1,'옷' : 1,'장갑' : 1,'구두' : 1,'신발' : 1,'후드득' : 1,'바지' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '선물' : {'생일' : 1, '잠옷' : 1, '주다' : 1,'상자' : 1,'사다' : 1,'크리스마스' : 1,'옹기종기' : 1,'열쇠' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '꽃' : {'활짝' : 1,'나비' : 1,'나무' : 1,'봄' : 1,'예쁘다' : 1,'가을' : 1,'쫙' : 1,'목도리' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,},
-            '텔레비전' : {'틀다' : 1,'보다' : 1,'라디오' : 1,'에어컨' : 1,'켜다' : 1,'맛보다' : 1,'핸드폰' : 1,'집' : 1,'테스트1':1, '테스트2':1, '테스트3':1, '테스트4':1,}
-        }
+    
+        self.context = self.guidance.get_object_context()
+
+        self.candidates = self.guidance.get_candidates()
 
         ## init recommendation (first send)
         self.get_recommendations()
         
         print('Init modelserver done')
 
- 
+    def __del__(self, type, value, traceback):
+        self.audial_process.terminate()
+        [vp.terminate() for vp in self.visual_process]
+        
+        print("terminate process")
+
+
     def get_attended_objects(self, focus, object_bboxes, classes):
         ''' Returns the object at the `focus` coordinate.
 
@@ -191,7 +179,7 @@ class ModelServer:
             A max heap-like structure would be a lot more convenient than
             recalculating weights and sorting every time...
         '''
-        N = 12 # Total number of words to recommend
+        N = 4 # Total number of words to recommend
         N_h = N/2
         count = N_h
         
@@ -210,19 +198,29 @@ class ModelServer:
                 n = count
             count -= n
             
-            heap_candidates = heapq.nlargest(int(n*2), self.candidates[obj].items(), key = lambda x : x[1])
-            top_candidates = [ c[0] for c in heap_candidates]
-            recommendations.append({'object' : obj, 'target_words' : top_candidates})
+            heap_candidates = heapq.nlargest(int(n*2), self.candidates[obj].items(), key = lambda x : round(x[1]['weight'],1))
+            
+            # top_candidates = [ {c[0] : c[1]['sentences']} for c in heap_candidates]
+            for c in heap_candidates:
+                recommendations.append(
+                    {
+                        'object' : obj,
+                        'target_word' : c[0],
+                        'target_sentences' : c[1]['sentences'],
+                        'highlights' : c[1]['highlights']
+                    }
+                )
         
-        recommendations = sorted(recommendations, key = lambda x: len(x['target_words']), reverse=True)
+        # recommendations = sorted(recommendations, key = lambda x: len(x['target_words']), reverse=True)
         
         recommendation_to_queue = {
             'tag' : 'recommendation',
-            'recommendation' : recommendations
+            'recommendations' : recommendations
         }
         
         if self.result_queue:
             self.result_queue.put(recommendation_to_queue)
+
             
         return recommendations
 
@@ -238,13 +236,17 @@ class ModelServer:
         gamma = 0.01 # amount to decrement the relevance by 
         
         target_spoken = []
+        is_spoken_word = 0
 
         for word in words:
             for obj in self.candidates:
                 for cand in self.candidates[obj]:
                     if cand == word:
-                        self.candidates[obj][cand] = round(self.candidates[obj][cand] - gamma,1)
-                        target_spoken.append(word)
+                        self.candidates[obj][cand]['weight'] = self.candidates[obj][cand]['weight'] - gamma
+                        is_spoken_word = 1
+            if is_spoken_word:
+                target_spoken.append(word)
+                is_spoken_word = 0
             
         if len(target_spoken) > 0:
             
@@ -259,15 +261,12 @@ class ModelServer:
 
     def run(self, visualize=False):
         ''' Main loop.
-            Visualize only works in Jupyter.
         '''
         # These processes should be joined on error, interrupt, etc.
-        self.visual_process_1.start() # start processes
-        # self.visual_process_2.start() # start processes
-        # self.visual_process_3.start() # start processes
-
+        [ vp.start() for vp in self.visual_process ]
 
         self.audial_process.start()
+
         print('process start')
         # This is unnecessary because the queue.get() below is blocking anyways
         # self.barrier.wait()
@@ -287,7 +286,7 @@ class ModelServer:
         gaze_targets = []
 
 
-        while (1):
+        while self.audial_process.is_alive() and self.visual_process[0].is_alive():
             # This blocks until an item is available
             result = self.queue.get(block=True, timeout=None) 
 
@@ -317,18 +316,16 @@ class ModelServer:
                 if len(target_objects) != 0:
                     recommendations = self.update_context('visual', target_objects)
 
-                if visualize and camera_id == '1':
-                    self.visualizer.clear()
-                    self.visualizer.draw_objects(image, object_bboxes, 
+                if visualize:
+                    visualizer_curr = self.visualizer[camera_id]
+                    visualizer_curr.draw_objects(image, object_bboxes, 
                             object_classnames, object_confidences)
-                    self.visualizer.draw_face_bboxes(image, face_bboxes)
+                    visualizer_curr.draw_face_bboxes(image, face_bboxes)
                     for i, face_bbox in enumerate(face_bboxes):
-                        self.visualizer.draw_gaze(image, face_bbox, 
+                        visualizer_curr.draw_gaze(image, face_bbox, 
                                 gaze_targets[i])
-
-                    image = self.visualizer.add_captions_recommend(image, transcript, target_spoken, recommendations)
-                    # self.visualizer.imshow(image)
-                    self.visualizer.visave(image, frame_num)
+                    image = visualizer_curr.add_captions_recommend(image,transcript,target_spoken)
+                    visualizer_curr.visave(image, frame_num)
                 target_spoken.clear()
 
             elif result['from'] == 'audio':
@@ -338,7 +335,6 @@ class ModelServer:
                 
                 spoken_words_update = spoken_words.copy()
                 
-                ## TODO : change to regex  
                 for word in spoken_words_prev:
                     if word in spoken_words_update:
                         spoken_words_update.remove(word)
@@ -365,7 +361,10 @@ class ModelServer:
                     spoken_words.clear()
                         
                 spoken_words_prev = spoken_words
-                        
+        
+        ## close processes
+        print("exit server run")        
+
     def morph_analyze(self, transcript):
         spoken_words = []
         
@@ -394,31 +393,89 @@ def start(url, queue, is_visualize):
 
     server.run(visualize=is_visualize)
 
-async def pop_and_send(websocket, path):
+async def serve_websocket(websocket, path):
     print("websocket start!")
 
-    while(1):
-        data = data_queue.get(block=True)
-        data_json = json.dumps(data,ensure_ascii=False)
+    state = 'closed'
 
-        await websocket.send(data_json)
+    while (1):
+
+        if state == 'closed':
+            try:
+                client_signal = await websocket.recv()
+
+                if client_signal == 'open_connection':
+                    data_queue = Queue()
+
+                    server_process = Process(target=start, args=(url, data_queue, False))
+                    server_process.start()
+
+                    state = 'process_run'
+                else:
+                    print("undefined signal")
+                    state = 'error'
+            except:
+                pass
+
+        elif state == 'process_run':
+            if not data_queue.empty():
+                data = data_queue.get(block=False)
+                data_json = json.dumps(data, ensure_ascii=False)
+                await websocket.send(data_json)
+            else:
+                try:
+                    client_signal = await wait_for(websocket.recv(), timeout=1.0)
+                    if client_signal == 'end_process':
+                        state = 'send_statistics'
+                        # print("end_process")
+                    else:
+                        print("undefined signal")
+                        state = 'error'
+                except:
+                    continue
+
+        elif state == 'send_statistics':
+            await websocket.send("statistics")
+            # print("send statistics")
+            # print("clear process")
+            server_process.terminate()
+            data_queue.close()
+
+            client_signal = await websocket.recv()
+            if client_signal == 'close_connection':
+                state = 'server_close'
+            else:
+                print("undefined signal")
+                state = 'error'
+
+        elif state == 'server_close':
+            await websocket.close()
+            state = 'closed'
         
+        else:
+            print('error!')
+
+    print("end of connection(server)")       
 
 if __name__ == '__main__': 
     
-    server_process = Process(target=start, 
-                args=(url, data_queue, True))
+    ## for server test 
+    # server_process = Process(target=start, 
+    #             args=(url, data_queue, True))
     
-    server_process.start()
+    # server_process.start()
+    
+    # while server_process.is_alive():
+    #     if not data_queue.empty():
+    #         result = data_queue.get(block=True)
+    #         print(result)
+    #         print('\n')
 
-    while (1):
-        result = data_queue.get(block=True)
-        print(result)
-        print('\n')
-#     websocket_server = websockets.serve(pop_and_send, '0.0.0.0', 8888, ping_interval = None)
+    ## for websocket
+    websocket_server = websockets.serve(serve_websocket, '0.0.0.0', 8888, ping_interval = None)
 
-#     asyncio.get_event_loop().run_until_complete(websocket_server)
-#     asyncio.get_event_loop().run_forever()
+    asyncio.get_event_loop().run_until_complete(websocket_server)
+    asyncio.get_event_loop().run_forever()
     
     
     

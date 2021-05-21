@@ -57,15 +57,17 @@ class VisualMonitor:
 
         camera_id = url[-1]
 
-        while 1:
+        while imagestream.running:
             frames = imagestream.dump()
             frame = frames[-1] # most recent?
             results = self.predict_single_frame(frame[0])
 
             results['frame_num'] = frame[1]
-            results['camera_id'] = camera_id
+            results['camera_id'] = int(camera_id)
 
             queue.put(results)
+        print('visual end'+ str(camera_id))
+        
 
 
 

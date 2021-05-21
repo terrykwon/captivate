@@ -67,6 +67,7 @@ class ResumableSpeechRecognizer:
 
     def __exit__(self, type, value, traceback):
         self.closed = True
+        print("audial exit")
         
         
     def transcribe_stream (self, url, queue=None, language_code='ko-KR'):
@@ -113,7 +114,9 @@ class ResumableSpeechRecognizer:
                     self.new_stream = True
             except Exception:
                 print('end of stream')
+                ffmpeg_process.terminate()
                 self.closed = True
+                return
                 
         
         

@@ -1,15 +1,39 @@
+import os
+
 # from multiprocessing import Process, Lock, Barrier, Queue
 from torch import multiprocessing
-from torch.multiprocessing import Process, Lock, Barrier, Queue
+from torch.multiprocessing import Process, Queue
 
-from modelserver.unimodal import audial, visual
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+
+from modelserver.unimodal import audial_infinite, visual
 from modelserver.visualization.visualizer import Visualizer
+from modelserver.guidance.guidance import Guidance
 
 import time
 import math
 
 import numpy as np
 import heapq
+
+from khaiii import KhaiiiApi
+
+from collections import defaultdict
+import re
+
+import json
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/workspace/modelserver/default-demo-app-c4bc3-b67061a9c4b1.json"
+
+
+guide_file_path = '/workspace/modelserver/modelserver/guidance/demo_2.csv'
+
+def start(url, queue, is_visualize):
+    print('server start')
+    server = ModelServer(url, queue)
+
+    server.run(visualize=is_visualize)
 
 
 class ModelServer:
@@ -31,30 +55,60 @@ class ModelServer:
             for demo purposes.
     '''
 
-    def __init__(self, stream_url):
+    def __init__(self, stream_url, result_queue):
         # this method must be only called once
         # multiprocessing.set_start_method('spawn') # CUDA doesn't support fork
         # but doesn't matter if CUDA is initialized on a single process
-
+        self.result_queue = result_queue
+        
         self.stream_url = stream_url
         self.queue = Queue() # thread-safe
 
-        self.barrier = Barrier(2) # barrier that waits for 2 parties
-        self.visual_process = Process(target=visual.run, 
-                args=(self.stream_url, self.queue, self.barrier))
-        self.audial_process = Process(target=audial.run, 
-                args=(self.stream_url, self.queue, self.barrier))
+        
+        self.visual_process = [ Process(target=visual.run, 
+                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(1) ]
 
-        self.visual_process = Process(target=visual.run, 
-                args=(self.stream_url, self.queue, None))
-        self.audial_process = Process(target=audial.run, 
-                args=(self.stream_url, self.queue, None))
+        self.audial_process = Process(target=audial_infinite.run, 
+                args=('rtmp://video:1935/captivate/test_audio', self.queue, None), daemon=True)
 
-        self.visualizer = Visualizer()
+        
+        self.visualizer = [ Visualizer(camera_id) for camera_id in range(1) ]
 
+        self.Khaiii_api = KhaiiiApi()
+
+        self.guidance = Guidance(guide_file_path)
+
+        self.objects = self.guidance.get_object_names()
+
+        self.visual_classes = {
+            'ball' : '공',
+            'dog' : '강아지',
+            'cat' : '고양이',
+            'shoe' : '신발',
+            'spoon' : '숟가락',
+            'bowl' : '그릇',
+            'fork' : '포크',
+            'bus' : '버스',
+            'tv' : '텔레비전',
+            'bicycle' : '자전거',
+            'fish' : '물고기',
+            'mirror' : '거울',
+            'toothbrush' : '칫솔',
+            'sock' : '양말',
+            'gift' : '선물',
+            'flower' : '꽃'
+        }
+    
+        self.context = self.guidance.get_object_context()
+
+        self.candidates = self.guidance.get_candidates()
+
+        ## init recommendation (first send)
+        self.get_recommendations()
+        
         print('Init modelserver done')
 
- 
+
     def get_attended_objects(self, focus, object_bboxes, classes):
         ''' Returns the object at the `focus` coordinate.
 
@@ -85,28 +139,30 @@ class ModelServer:
         '''
         if modality not in {'visual', 'audial'}:
             raise ValueError('modality must be one of visual or audial')
-
-        alpha = 0.1
-        beta = 0.2
         
-        if modality == 'visual':
-            denom = 1.0 + len(targets) * alpha
-        else:
-            denom = 1.0 + len(targets) * beta
 
-        for o in self.objects:
-            if o in targets:
+        ## get distribution
+        target_length = 0
+
+        target_dist = defaultdict(float)
+        for t in targets:
+            if t in self.objects:
+                target_dist[t] += 1
+                target_length += 1
+        
+        alpha = 0.017
+        beta = 0.1
+
+        if target_length != 0:
+            for o in self.objects:
                 if modality == 'visual':
-                    self.context[o] += alpha
-                elif modality == 'audial':
-                    self.context[o] += beta 
+                    self.context[o] = self.context[o] * (1-alpha) + target_dist[o] * alpha / target_length
+                if modality == 'audial':
+                    self.context[o] = self.context[o] * (1-beta) + target_dist[o] * beta / target_length
+        
+        recommendations = self.get_recommendations()
 
-            self.context[o] /= denom
-
-        # sort context in descending order (most significant first)
-        self.context = {k:v for k,v in sorted(self.context.items(), 
-                key=lambda item: -item[1])}
-
+        return recommendations
 
     def get_recommendations(self):
         ''' Returns a list of recommended words.
@@ -116,22 +172,53 @@ class ModelServer:
             A max heap-like structure would be a lot more convenient than
             recalculating weights and sorting every time...
         '''
-        N = 12 # Total number of words to recommend
+        N = 4 # Total number of words to recommend
+        N_h = N/2
+        count = N_h
+        
+        recommendations = [] # list to order
 
-        recommendations = [] # list because ordered
 
-        for obj in self.context:
-            weight = self.context[obj]
+        for item in sorted(self.context.items(), key = lambda x: x[1], reverse=True):
+            obj = item[0]
+            weight = item[1]
+            
             # number of targets to recommend for this word
-            n = math.ceil(weight * N) 
-            top_candidates = heapq.nsmallest(n, self.candidates[obj])
+            n = math.ceil(weight * N_h)
+            if count == 0:
+                break
+            elif count - n < 0:
+                n = count
+            count -= n
+            
+            heap_candidates = heapq.nlargest(int(n*2), self.candidates[obj].items(), key = lambda x : round(x[1]['weight'],1))
+            
+            # top_candidates = [ {c[0] : c[1]['sentences']} for c in heap_candidates]
+            for c in heap_candidates:
+                recommendations.append(
+                    {
+                        'object' : obj,
+                        'target_word' : c[0],
+                        'target_sentences' : c[1]['sentences'],
+                        'highlights' : c[1]['highlights']
+                    }
+                )
+        
+        # recommendations = sorted(recommendations, key = lambda x: len(x['target_words']), reverse=True)
+        
+        recommendation_to_queue = {
+            'tag' : 'recommendation',
+            'recommendations' : recommendations
+        }
+        
+        if self.result_queue:
+            self.result_queue.put(recommendation_to_queue)
 
-            recommendations.extend([c.word for c in top_candidates])
-
-        return recommendations[:N]
+            
+        return recommendations
 
     
-    def on_spoken(self, word):
+    def on_spoken(self, words):
         ''' Action for when a target word is spoken. TODO
 
             * This isn't the name of the object! It's the candidate.
@@ -139,32 +226,51 @@ class ModelServer:
             The word's relevance should be decreased a bit so that the parent
             diversifies words.
         '''
-        self.spoken[word] += 1
-        gamma = 1 # amount to decrement the relevance by 
-
-        for obj in self.candidates:
-            for cand in self.candidates[obj]:
-                if cand.word == word:
-                    # decreasing relevance since it is negative
-                    cand.relevance += gamma 
-                    print(cand.word, cand.relevance)
-
-                    # update order... so convoluted though...
-                    heapq.heapify(self.candidates[obj])
+        gamma = 0.01 # amount to decrement the relevance by 
         
+        target_spoken = []
+        is_spoken_word = 0
+
+        for word in words:
+            for obj in self.candidates:
+                for cand in self.candidates[obj]:
+                    if cand == word:
+                        self.candidates[obj][cand]['weight'] = self.candidates[obj][cand]['weight'] - gamma
+                        is_spoken_word = 1
+            if is_spoken_word:
+                target_spoken.append(word)
+                is_spoken_word = 0
+            
+        if len(target_spoken) > 0:
+            
+            target_to_queue = {
+                'tag':'target_words',
+                'words':target_spoken
+            }
+
+            if self.result_queue:
+                self.result_queue.put(target_to_queue)
+        return target_spoken
 
     def run(self, visualize=False):
         ''' Main loop.
-            Visualize only works in Jupyter.
         '''
         # These processes should be joined on error, interrupt, etc.
-        self.visual_process.start() # start processes
+        [ vp.start() for vp in self.visual_process ]
+
         self.audial_process.start()
 
+        print('process start')
         # This is unnecessary because the queue.get() below is blocking anyways
         # self.barrier.wait()
 
         transcript = ''
+        spoken_words_prev = []
+        spoken_words_update = []
+        target_spoken = []
+
+        recommendations = []
+
         image = None
         object_bboxes = []
         object_confidences = []
@@ -172,7 +278,8 @@ class ModelServer:
         face_bboxes = []
         gaze_targets = []
 
-        while (1):
+
+        while self.audial_process.is_alive() and self.visual_process[0].is_alive():
             # This blocks until an item is available
             result = self.queue.get(block=True, timeout=None) 
 
@@ -183,41 +290,104 @@ class ModelServer:
                 object_classnames = result['object_classnames']
                 face_bboxes = result['face_bboxes']
                 gaze_targets = result['gaze_targets']
+                camera_id = result['camera_id']
+                frame_num = result['frame_num']
+
 
                 attended_objects = [] # includes both parent & child for now
                 for target in gaze_targets:
                     attended_objects.extend(self.get_attended_objects(
                             target, object_bboxes, object_classnames))
-
-                # self.update_context('visual', attended_objects)
+                
+                target_objects = []
+                for o in attended_objects:
+                    if o in self.visual_classes.keys():
+                        object_korean = self.visual_classes[o]
+                        target_objects.append(object_korean)
+                
+                # update if there's objects
+                if len(target_objects) != 0:
+                    recommendations = self.update_context('visual', target_objects)
 
                 if visualize:
-                    self.visualizer.clear()
-                    self.visualizer.draw_objects(image, object_bboxes, 
+                    visualizer_curr = self.visualizer[camera_id]
+                    visualizer_curr.draw_objects(image, object_bboxes, 
                             object_classnames, object_confidences)
-                    self.visualizer.draw_face_bboxes(image, face_bboxes)
+                    visualizer_curr.draw_face_bboxes(image, face_bboxes)
                     for i, face_bbox in enumerate(face_bboxes):
-                        self.visualizer.draw_gaze(image, face_bbox, 
+                        visualizer_curr.draw_gaze(image, face_bbox, 
                                 gaze_targets[i])
-
-                    image = self.visualizer.add_captions(image, transcript, 
-                            attended_objects)
-                    self.visualizer.imshow(image)
+                    image = visualizer_curr.add_captions_recommend(image,transcript,target_spoken)
+                    visualizer_curr.visave(image, frame_num)
+                target_spoken.clear()
 
             elif result['from'] == 'audio':
-                # print('confidence {}: {}'.format(result['confidence'], result['transcript']))
-                # print('audio') 
                 transcript = result['transcript']
+                
+                spoken_words = self.morph_analyze(transcript)
+                
+                spoken_words_update = spoken_words.copy()
+                
+                print("spoken_words_prev")
+                print(spoken_words_prev)
+                print("spoken_words")
+                print(spoken_words)
+                
+                for word in spoken_words_prev:
+                    if word in spoken_words_update:
+                        spoken_words_update.remove(word)
+                
+                print("spoken_words_update")
+                print(spoken_words_update)
+                
+                # update spoken & target word weight
+                spoken = self.on_spoken(spoken_words_update)
+                if len(spoken) != 0:
+                    target_spoken = spoken
 
-                if result['is_final'] == True: # is this a string or boolean?
-                    # TODO: pass this to the semantic component which will parse
-                    # the sentence, and match the spoken words against the
-                    # recommendations 
-                    # finally, self.update_context('audial',
-                    # spoken_objects)
-                    pass
 
+                # if transcript is final
+                if result['is_final']: 
+                    spoken_objects = []
 
-if __name__ == '__main__':  
-    server = ModelServer()
-    server.run()
+                    # update spoken objects list
+                    for word in spoken_words:
+                        if word in self.objects:
+                            spoken_objects.append(word)
+
+                    # update object context
+                    if len(spoken_objects) != 0 :
+                        recommendations = self.update_context('audial', spoken_objects)
+                    
+                    spoken_words.clear()
+                    spoken_words_prev.clear()
+                
+                    
+                if not len(spoken_words) < len(spoken_words_prev):
+                    spoken_words_prev = spoken_words
+        
+        ## close processes
+        self.audial_process.terminate()
+        [vp.terminate() for vp in self.visual_process]
+        print("exit server run")        
+
+    def morph_analyze(self, transcript):
+        spoken_words = []
+        
+        try:
+            line_pos = self.Khaiii_api.analyze(transcript)
+
+            for w in line_pos:
+                for m in w.morphs:
+                    if m.tag in ['NNG', 'NR', 'MAG']:
+                        spoken_words.append(m.lex)
+                    elif m.tag in ['VV', 'VA']:
+                        spoken_words.append(m.lex + '다')
+                    elif m.tag in ['XR']:
+                        spoken_words.append(m.lex+'하다')
+                    else :
+                        spoken_words.append(m.lex)
+        except:
+            print('morph')
+        
+        return spoken_words

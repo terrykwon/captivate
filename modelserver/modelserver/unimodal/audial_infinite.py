@@ -118,6 +118,8 @@ class ResumableSpeechRecognizer:
                 self.closed = True
                 return
                 
+        ffmpeg_process.terminate()
+                
         
         
     def start_decoder_subprocess(self, url):

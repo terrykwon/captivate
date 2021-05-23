@@ -15,18 +15,20 @@ async def web_recv():
         await websocket.send("open_connection")
 
         while(1):
-            message_recv = await websocket.recv()
+            message_recv = json.loads(await websocket.recv())
 
-            if message_recv == "statistics":
+            if message_recv['tag'] == 'statistics':
                 print("statistics_received")
+                await consumer(message_recv)
                 await websocket.send("close_connection")
-                break # close connection
-
+                await websocket.close() # close connection
+                break
             elif time.time() - start_time > 60:
                 await websocket.send("end_process")
                 print("send end process signal")
 
             else:
+                await websocket.send(message_recv)
                 await consumer(message_recv)
     print("end of connection(client)")            
 

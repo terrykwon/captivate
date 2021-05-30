@@ -1,5 +1,6 @@
 from collections import defaultdict
 import os
+import psutil
 
 # from multiprocessing import Process, Queue
 from torch import multiprocessing
@@ -22,6 +23,12 @@ data_queue = Queue()
 statistic_word = defaultdict(int)
 statistic_object = defaultdict(int)
 
+def get_list(target_dict):
+    target_list = []
+    for k, v in target_dict.items():
+        target_list.append({'name':k, 'count':v})
+
+    return target_list
 
 async def consumer(message, server_process, websocket):
 
@@ -31,15 +38,20 @@ async def consumer(message, server_process, websocket):
     elif message == "end_process":
         statistics = {
             'tag' : 'statistics',
-            'target_word_statistic' : dict(statistic_word), 
-            'attended_object_statistic' : dict(statistic_object)
+            'wordStatistic' : get_list(statistic_word),
+            'objectStatistic' : get_list(statistic_object)
         }
         
+        print("send statistics!!!")
         await websocket.send(json.dumps(statistics))
+
+        statistic_word.clear()
+        statistic_object.clear()
 
     elif message == "close_connection":
         await websocket.close()
-        server_process.terminate()
+        print("websocket connection closed!!!")
+        killtree(server_process.pid, True)
         
     else:
         print("data received from client")
@@ -88,8 +100,17 @@ async def websocket_handler(websocket, path):
         [consumer_task, producer_task],
         return_when=asyncio.FIRST_COMPLETED,
     )
-    for task in pending:
-        task.cancel()
+    # for task in pending:
+    #     task.cancel()
+
+
+def killtree(process_pid, including_parent):
+    parent = psutil.Process(process_pid)
+    for child in parent.children(recursive=False):
+        killtree(child.pid, True)
+    
+    if including_parent:
+        parent.kill()
 
 
 

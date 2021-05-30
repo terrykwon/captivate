@@ -26,13 +26,13 @@ CHUNK_SIZE = 8192  # 100ms
 def run(url, queue, barrier):
     """start bidirectional streaming from microphone input to speech API"""
 
-    speech_recognizer = ResumableSpeechRecognizer(SAMPLE_RATE, CHUNK_SIZE)
+    speech_recognizer = ResumableSpeechRecognizer(url, SAMPLE_RATE, CHUNK_SIZE)
 
     if barrier is not None: # debug
         barrier.wait()
     
     with speech_recognizer as recognizer:
-        recognizer.transcribe_stream(url, queue)
+        recognizer.transcribe_stream(queue)
 
 
 
@@ -45,7 +45,7 @@ def get_current_time():
 class ResumableSpeechRecognizer:
     """Opens a recording stream as a generator yielding the audio chunks."""
 
-    def __init__(self, rate, chunk_size):
+    def __init__(self, url, rate, chunk_size):
         self.client = speech.SpeechClient()
         self._rate = rate
         self.chunk_size = chunk_size
@@ -60,26 +60,29 @@ class ResumableSpeechRecognizer:
         self.last_transcript_was_final = False
         self.new_stream = True
         self.closed = True
+        self.url = url
         
     def __enter__(self):
         self.closed = False
+        self.ffmpeg_process = self.start_decoder_subprocess(self.url)
         return self
 
     def __exit__(self, type, value, traceback):
         self.closed = True
+        self.ffmpeg_process.terminate()
         print("audial exit")
         
         
-    def transcribe_stream (self, url, queue=None, language_code='ko-KR'):
+    def transcribe_stream (self, queue=None, language_code='ko-KR'):
         ''' Main function of the class. Writes transcription outputs to `queue`.
 
             frame_size: of a single frame, in bytes
         '''
-        ffmpeg_process = self.start_decoder_subprocess(url)
+        # ffmpeg_process = self.start_decoder_subprocess(url)
         
         while not self.closed:
             try:
-                stream = self.frame_generator(ffmpeg_process, self.chunk_size)
+                stream = self.frame_generator(self.ffmpeg_process, self.chunk_size)
 
                 requests = (speech.StreamingRecognizeRequest(audio_content=chunk)
                             for chunk in stream)
@@ -114,11 +117,10 @@ class ResumableSpeechRecognizer:
                     self.new_stream = True
             except Exception:
                 print('end of stream')
-                ffmpeg_process.terminate()
+                self.ffmpeg_process.terminate()
                 self.closed = True
                 return
                 
-        ffmpeg_process.terminate()
                 
         
         

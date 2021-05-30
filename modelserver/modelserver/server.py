@@ -27,7 +27,7 @@ import json
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/workspace/modelserver/default-demo-app-c4bc3-b67061a9c4b1.json"
 
 
-guide_file_path = '/workspace/modelserver/modelserver/guidance/demo_2.csv'
+guide_file_path = '/workspace/modelserver/modelserver/guidance/demo_3_prev.csv'
 
 def start(url, queue, is_visualize):
     print('server start')
@@ -150,8 +150,8 @@ class ModelServer:
                 target_dist[t] += 1
                 target_length += 1
         
-        alpha = 0.017
-        beta = 0.1
+        alpha = 0.017*3
+        beta = 0.05
 
         if target_length != 0:
             for o in self.objects:
@@ -279,97 +279,98 @@ class ModelServer:
         gaze_targets = []
 
 
-        while self.audial_process.is_alive() and self.visual_process[0].is_alive():
-            # This blocks until an item is available
-            result = self.queue.get(block=True, timeout=None) 
+        while self.audial_process.is_alive():
+            try:
+                # This blocks until an item is available
+                result = self.queue.get(block=True, timeout=None) 
 
-            if result['from'] == 'image':                    
-                image = result['image']
-                object_bboxes = result['object_bboxes']
-                object_confidences = result['object_confidences']
-                object_classnames = result['object_classnames']
-                face_bboxes = result['face_bboxes']
-                gaze_targets = result['gaze_targets']
-                camera_id = result['camera_id']
-                frame_num = result['frame_num']
-
-
-                attended_objects = [] # includes both parent & child for now
-                for target in gaze_targets:
-                    attended_objects.extend(self.get_attended_objects(
-                            target, object_bboxes, object_classnames))
-                
-                target_objects = []
-                for o in attended_objects:
-                    if o in self.visual_classes.keys():
-                        object_korean = self.visual_classes[o]
-                        target_objects.append(object_korean)
-                
-                # update if there's objects
-                if len(target_objects) != 0:
-                    recommendations = self.update_context('visual', target_objects)
-
-                if visualize:
-                    visualizer_curr = self.visualizer[camera_id]
-                    visualizer_curr.draw_objects(image, object_bboxes, 
-                            object_classnames, object_confidences)
-                    visualizer_curr.draw_face_bboxes(image, face_bboxes)
-                    for i, face_bbox in enumerate(face_bboxes):
-                        visualizer_curr.draw_gaze(image, face_bbox, 
-                                gaze_targets[i])
-                    image = visualizer_curr.add_captions_recommend(image,transcript,target_spoken)
-                    visualizer_curr.visave(image, frame_num)
-                target_spoken.clear()
-
-            elif result['from'] == 'audio':
-                transcript = result['transcript']
-                
-                spoken_words = self.morph_analyze(transcript)
-                
-                spoken_words_update = spoken_words.copy()
-                
-                print("spoken_words_prev")
-                print(spoken_words_prev)
-                print("spoken_words")
-                print(spoken_words)
-                
-                for word in spoken_words_prev:
-                    if word in spoken_words_update:
-                        spoken_words_update.remove(word)
-                
-                print("spoken_words_update")
-                print(spoken_words_update)
-                
-                # update spoken & target word weight
-                spoken = self.on_spoken(spoken_words_update)
-                if len(spoken) != 0:
-                    target_spoken = spoken
+                if result['from'] == 'image':                    
+                    image = result['image']
+                    object_bboxes = result['object_bboxes']
+                    object_confidences = result['object_confidences']
+                    object_classnames = result['object_classnames']
+                    face_bboxes = result['face_bboxes']
+                    gaze_targets = result['gaze_targets']
+                    camera_id = result['camera_id']
+                    frame_num = result['frame_num']
 
 
-                # if transcript is final
-                if result['is_final']: 
-                    spoken_objects = []
-
-                    # update spoken objects list
-                    for word in spoken_words:
-                        if word in self.objects:
-                            spoken_objects.append(word)
-
-                    # update object context
-                    if len(spoken_objects) != 0 :
-                        recommendations = self.update_context('audial', spoken_objects)
+                    attended_objects = [] # includes both parent & child for now
+                    for target in gaze_targets:
+                        attended_objects.extend(self.get_attended_objects(
+                                target, object_bboxes, object_classnames))
                     
-                    spoken_words.clear()
-                    spoken_words_prev.clear()
-                
+                    target_objects = []
+                    for o in attended_objects:
+                        if o in self.visual_classes.keys():
+                            object_korean = self.visual_classes[o]
+                            target_objects.append(object_korean)
                     
-                if not len(spoken_words) < len(spoken_words_prev):
-                    spoken_words_prev = spoken_words
-        
-        ## close processes
-        self.audial_process.terminate()
-        [vp.terminate() for vp in self.visual_process]
-        print("exit server run")        
+                    # update if there's objects
+                    if len(target_objects) != 0:
+                        recommendations = self.update_context('visual', target_objects)
+
+                    if visualize:
+                        visualizer_curr = self.visualizer[camera_id]
+                        visualizer_curr.draw_objects(image, object_bboxes, 
+                                object_classnames, object_confidences)
+                        visualizer_curr.draw_face_bboxes(image, face_bboxes)
+                        for i, face_bbox in enumerate(face_bboxes):
+                            visualizer_curr.draw_gaze(image, face_bbox, 
+                                    gaze_targets[i])
+                        image = visualizer_curr.add_captions_recommend(image,transcript,target_spoken)
+                        visualizer_curr.visave(image, frame_num)
+                    target_spoken.clear()
+
+                elif result['from'] == 'audio':
+                    transcript = result['transcript']
+                    
+                    spoken_words = self.morph_analyze(transcript)
+                    
+                    spoken_words_update = spoken_words.copy()
+                    
+                    # print("spoken_words_prev")
+                    # print(spoken_words_prev)
+                    # print("spoken_words")
+                    # print(spoken_words)
+                    
+                    for word in spoken_words_prev:
+                        if word in spoken_words_update:
+                            spoken_words_update.remove(word)
+                    
+                    # print("spoken_words_update")
+                    # print(spoken_words_update)
+                    
+                    # update spoken & target word weight
+                    spoken = self.on_spoken(spoken_words_update)
+                    if len(spoken) != 0:
+                        target_spoken = spoken
+
+
+                    # if transcript is final
+                    if result['is_final']: 
+                        spoken_objects = []
+
+                        # update spoken objects list
+                        for word in spoken_words:
+                            if word in self.objects:
+                                spoken_objects.append(word)
+
+                        # update object context
+                        if len(spoken_objects) != 0 :
+                            recommendations = self.update_context('audial', spoken_objects)
+                        
+                        spoken_words.clear()
+                        spoken_words_prev.clear()
+                    
+                        
+                    if not len(spoken_words) < len(spoken_words_prev):
+                        spoken_words_prev = spoken_words
+            except:
+                ## close processes
+                self.audial_process.terminate()
+                [vp.terminate() for vp in self.visual_process]
+                print("exit server run")        
 
     def morph_analyze(self, transcript):
         spoken_words = []

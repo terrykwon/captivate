@@ -27,7 +27,7 @@ import json
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/workspace/modelserver/default-demo-app-c4bc3-b67061a9c4b1.json"
 
 
-guide_file_path = '/workspace/modelserver/modelserver/guidance/demo_3_prev.csv'
+guide_file_path = '/workspace/modelserver/modelserver/guidance/demo_9_add_id.csv'
 
 def start(url, queue, is_visualize):
     print('server start')
@@ -66,13 +66,13 @@ class ModelServer:
 
         
         self.visual_process = [ Process(target=visual.run, 
-                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(1) ]
+                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(3) ]
 
         self.audial_process = Process(target=audial_infinite.run, 
                 args=('rtmp://video:1935/captivate/test_audio', self.queue, None), daemon=True)
 
         
-        self.visualizer = [ Visualizer(camera_id) for camera_id in range(1) ]
+        self.visualizer = [ Visualizer(camera_id) for camera_id in range(3) ]
 
         self.Khaiii_api = KhaiiiApi()
 
@@ -89,13 +89,13 @@ class ModelServer:
             'bowl' : '그릇',
             'fork' : '포크',
             'bus' : '버스',
-            'tv' : '텔레비전',
+            'bear' : '곰돌이',
             'bicycle' : '자전거',
             'fish' : '물고기',
             'mirror' : '거울',
             'toothbrush' : '칫솔',
             'sock' : '양말',
-            'gift' : '선물',
+            'rabbit' : '토끼',
             'flower' : '꽃'
         }
     
@@ -150,7 +150,7 @@ class ModelServer:
                 target_dist[t] += 1
                 target_length += 1
         
-        alpha = 0.017*3
+        alpha = 0.017
         beta = 0.05
 
         if target_length != 0:
@@ -172,7 +172,7 @@ class ModelServer:
             A max heap-like structure would be a lot more convenient than
             recalculating weights and sorting every time...
         '''
-        N = 4 # Total number of words to recommend
+        N = 6 # Total number of words to recommend
         N_h = N/2
         count = N_h
         
@@ -193,14 +193,16 @@ class ModelServer:
             
             heap_candidates = heapq.nlargest(int(n*2), self.candidates[obj].items(), key = lambda x : round(x[1]['weight'],1))
             
-            # top_candidates = [ {c[0] : c[1]['sentences']} for c in heap_candidates]
+            # top_candidates = [ {c[0] : c[1]['sentence']} for c in heap_candidates]
             for c in heap_candidates:
                 recommendations.append(
                     {
                         'object' : obj,
                         'target_word' : c[0],
-                        'target_sentences' : c[1]['sentences'],
-                        'highlights' : c[1]['highlights']
+                        'target_sentence' : c[1]['sentence'],
+                        'highlight' : c[1]['highlight'],
+                        'id' : c[1]['id'],
+                        'color' : c[1]['color']
                     }
                 )
         
@@ -323,7 +325,10 @@ class ModelServer:
                     target_spoken.clear()
 
                 elif result['from'] == 'audio':
+
                     transcript = result['transcript']
+
+                    print(transcript)
                     
                     spoken_words = self.morph_analyze(transcript)
                     

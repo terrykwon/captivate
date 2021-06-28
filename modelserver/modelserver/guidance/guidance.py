@@ -22,11 +22,10 @@ class Guidance :
             word = guide[1]
             sentence = guide[2]
             highlight = guide[3]
+            id = guide[4]
+            color = guide[5]
 
-            if not word in guide_dict[object_name]:
-                guide_dict[object_name][word] = dict({'sentences': [], 'highlights':[], 'weight': 1})
-            guide_dict[object_name][word]['sentences'].append(sentence)
-            guide_dict[object_name][word]['highlights'].append(highlight)
+            guide_dict[object_name][word] = dict({'sentence': sentence, 'highlight': highlight, 'id': id, 'color' : color, 'weight': 1})
 
 
         return dict(guide_dict)

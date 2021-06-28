@@ -38,6 +38,7 @@ class ImageStream:
 
     def stop(self):
         self.running = False
+        
 
     def update(self):
         # print('update')

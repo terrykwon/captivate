@@ -17,7 +17,7 @@ class ObjectDetector(BasePredictor):
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7  # set threshold for this model
         # Find a model from detectron2's model zoo. You can use the https://dl.fbaipublicfiles... url as well
         # cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml")  # Let training initialize from model zoo
-        cfg.MODEL.WEIGHTS = '/workspace/modelserver/models/weights/object_wtbicycle.pth'
+        cfg.MODEL.WEIGHTS = '/workspace/modelserver/models/weights/model_9.pth'
         cfg.MODEL.ROI_HEADS.NUM_CLASSES = 16
         self.model = DefaultPredictor(cfg)
 
@@ -29,4 +29,5 @@ class ObjectDetector(BasePredictor):
 
     def id_to_classname_mappings(self):
         # return self.model.metadata.thing_classes
-        return ['ball','dog','cat','shoe','spoon','bowl','fork','bus','tv','bicycle','fish','mirror','toothbrush','sock','gift','flower']
+        return ['ball','dog','cat','shoe','spoon','bowl','fork','bus','bear','bicycle','fish','mirror','toothbrush','sock','rabbit','flower']
+        # return ['ball','dog','cat','shoe','spoon','bowl','fork','bus','tv','bicycle','fish','mirror','toothbrush','sock','gift','flower']

@@ -58,7 +58,7 @@ async def consumer(message, server_process, websocket):
 
 
 async def consumer_handler(websocket, path):
-    server_process = Process(target=server.start, args=(url, data_queue, False))
+    server_process = Process(target=server.start, args=(url, data_queue, True))
 
     while not websocket.closed :
         message = await websocket.recv()

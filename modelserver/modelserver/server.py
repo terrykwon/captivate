@@ -173,8 +173,9 @@ class ModelServer:
             recalculating weights and sorting every time...
         '''
         N = 6 # Total number of words to recommend
-        N_h = N/2
-        count = N_h
+        # N_h = N/2
+        # count = N_h
+        count = N
         
         recommendations = [] # list to order
 
@@ -184,14 +185,14 @@ class ModelServer:
             weight = item[1]
             
             # number of targets to recommend for this word
-            n = math.ceil(weight * N_h)
+            n = math.ceil(weight * N)
             if count == 0:
                 break
             elif count - n < 0:
                 n = count
             count -= n
             
-            heap_candidates = heapq.nlargest(int(n*2), self.candidates[obj].items(), key = lambda x : round(x[1]['weight'],1))
+            heap_candidates = heapq.nlargest(int(n), self.candidates[obj].items(), key = lambda x : round(x[1]['weight']))
             
             # top_candidates = [ {c[0] : c[1]['sentence']} for c in heap_candidates]
             for c in heap_candidates:
@@ -228,7 +229,7 @@ class ModelServer:
             The word's relevance should be decreased a bit so that the parent
             diversifies words.
         '''
-        gamma = 0.01 # amount to decrement the relevance by 
+        gamma = 0.5 # amount to decrement the relevance by 0.01
         
         target_spoken = []
         is_spoken_word = 0

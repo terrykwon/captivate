@@ -56,6 +56,7 @@ class VisualMonitor:
         imagestream.start()
 
         camera_id = url[-1]
+        # camera_id = '0'
 
         while imagestream.running:
             frames = imagestream.dump()
@@ -64,6 +65,9 @@ class VisualMonitor:
 
             results['frame_num'] = frame[1]
             results['camera_id'] = int(camera_id)
+
+            ## test for audio-video sync
+            results['video_time'] = frame[2]
 
             queue.put(results)
         print('visual end'+ str(camera_id))

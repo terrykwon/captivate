@@ -63,6 +63,8 @@ async def consumer_handler(websocket, path):
     while not websocket.closed :
         message = await websocket.recv()
         await consumer(message, server_process, websocket)
+    
+    killtree(server_process.pid, True)
 
 async def producer():
     if not data_queue.empty():
@@ -87,19 +89,23 @@ async def producer_handler(websocket, path):
         message = await producer()
         if message:
             await websocket.send(message)
-        
+    
 
         
     
 async def websocket_handler(websocket, path):
-    consumer_task = asyncio.ensure_future(
-        consumer_handler(websocket, path))
-    producer_task = asyncio.ensure_future(
-        producer_handler(websocket, path))
-    done, pending = await asyncio.wait(
-        [consumer_task, producer_task],
-        return_when=asyncio.FIRST_COMPLETED,
-    )
+    try:
+        consumer_task = asyncio.ensure_future(
+            consumer_handler(websocket, path))
+        producer_task = asyncio.ensure_future(
+            producer_handler(websocket, path))
+        done, pending = await asyncio.wait(
+            [consumer_task, producer_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+    except:
+        killtree(os.getpid(), False)
+    
     # for task in pending:
     #     task.cancel()
 

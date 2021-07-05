@@ -1,6 +1,8 @@
 import logging
 import time
 
+from datetime import datetime
+
 
 import subprocess
 from google.cloud import speech
@@ -258,12 +260,16 @@ class ResumableSpeechRecognizer:
             # Display interim results, but with a carriage return at the end of the
             # line, so subsequent lines will overwrite them.
             
+            ## test for audio-video sync
+            audio_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
             result_to_queue = {
                 'from': 'audio',
                 'transcript': transcript,
                 'confidence': confidence,
                 'time' : corrected_time,
-                'is_final' : result.is_final
+                'is_final' : result.is_final,
+                'audio_time': audio_time
             }
 
             if result.is_final:

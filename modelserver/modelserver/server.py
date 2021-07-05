@@ -64,15 +64,22 @@ class ModelServer:
         self.stream_url = stream_url
         self.queue = Queue() # thread-safe
 
+        ## for target weight decay (ms)
+        self.time_decay = int(round(time.time() * 1000)) 
+
         
         self.visual_process = [ Process(target=visual.run, 
-                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(3) ]
+                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(1, 3) ]
 
         self.audial_process = Process(target=audial_infinite.run, 
                 args=('rtmp://video:1935/captivate/test_audio', self.queue, None), daemon=True)
 
+        # ## sync test
+        # self.visual_process = [ Process(target=visual.run, args=('rtmp://video:1935/captivate/test', self.queue, None), daemon=True) ]
+        # self.audial_process = Process(target=audial_infinite.run, args=('rtmp://video:1935/captivate/test', self.queue, None), daemon=True)
         
-        self.visualizer = [ Visualizer(camera_id) for camera_id in range(3) ]
+
+        self.visualizer = [ Visualizer(camera_id) for camera_id in range(1, 3) ]
 
         self.Khaiii_api = KhaiiiApi()
 
@@ -150,7 +157,7 @@ class ModelServer:
                 target_dist[t] += 1
                 target_length += 1
         
-        alpha = 0.017
+        alpha = 0.017 / 4
         beta = 0.05
 
         if target_length != 0:
@@ -173,8 +180,9 @@ class ModelServer:
             recalculating weights and sorting every time...
         '''
         N = 6 # Total number of words to recommend
-        N_h = N/2
-        count = N_h
+        # N_h = N/2
+        # count = N_h
+        count = N
         
         recommendations = [] # list to order
 
@@ -184,14 +192,14 @@ class ModelServer:
             weight = item[1]
             
             # number of targets to recommend for this word
-            n = math.ceil(weight * N_h)
+            n = math.ceil(weight * N)
             if count == 0:
                 break
             elif count - n < 0:
                 n = count
             count -= n
             
-            heap_candidates = heapq.nlargest(int(n*2), self.candidates[obj].items(), key = lambda x : round(x[1]['weight'],1))
+            heap_candidates = heapq.nlargest(int(n), self.candidates[obj].items(), key = lambda x : round(x[1]['weight']))
             
             # top_candidates = [ {c[0] : c[1]['sentence']} for c in heap_candidates]
             for c in heap_candidates:
@@ -228,7 +236,7 @@ class ModelServer:
             The word's relevance should be decreased a bit so that the parent
             diversifies words.
         '''
-        gamma = 0.01 # amount to decrement the relevance by 
+        gamma = 0.5 # amount to decrement the relevance by //0.01
         
         target_spoken = []
         is_spoken_word = 0
@@ -253,6 +261,16 @@ class ModelServer:
             if self.result_queue:
                 self.result_queue.put(target_to_queue)
         return target_spoken
+
+    def decay_target_weights(self, recommendation):
+
+        for target_recommend in recommendation:
+            target_word = target_recommend['target_word']
+
+            for obj in self.candidates:
+                for cand in self.candidates[obj]:
+                    if cand == target_word:
+                        self.candidates[obj][cand]['weight'] = self.candidates[obj][cand]['weight'] - 0.1
 
     def run(self, visualize=False):
         ''' Main loop.
@@ -280,9 +298,20 @@ class ModelServer:
         face_bboxes = []
         gaze_targets = []
 
+        ## test for audio-video sync
+        audio_time = ''
+        video_time = ''
 
-        while self.audial_process.is_alive():
+        
+
+
+        while True:
             try:
+
+                ## restart audio process when there is no signal
+                if not self.audial_process.is_alive():
+                    self.audial_process.start()
+
                 # This blocks until an item is available
                 result = self.queue.get(block=True, timeout=None) 
 
@@ -295,6 +324,7 @@ class ModelServer:
                     gaze_targets = result['gaze_targets']
                     camera_id = result['camera_id']
                     frame_num = result['frame_num']
+                    video_time = result['video_time']
 
 
                     attended_objects = [] # includes both parent & child for now
@@ -312,6 +342,11 @@ class ModelServer:
                     if len(target_objects) != 0:
                         recommendations = self.update_context('visual', target_objects)
 
+                    curr_time = int(round(time.time() * 1000))
+                    if curr_time - self.time_decay > 6000 :
+                        self.decay_target_weights(recommendations)
+                        self.time_decay = curr_time
+
                     if visualize:
                         visualizer_curr = self.visualizer[camera_id]
                         visualizer_curr.draw_objects(image, object_bboxes, 
@@ -320,13 +355,19 @@ class ModelServer:
                         for i, face_bbox in enumerate(face_bboxes):
                             visualizer_curr.draw_gaze(image, face_bbox, 
                                     gaze_targets[i])
+
+                        #test for sync
+                        # transcript_sync = video_time+ " "+ transcript
                         image = visualizer_curr.add_captions_recommend(image,transcript,target_spoken)
                         visualizer_curr.visave(image, frame_num)
                     target_spoken.clear()
 
+
                 elif result['from'] == 'audio':
 
                     transcript = result['transcript']
+
+                    audio_time = result['audio_time']
 
                     print(transcript)
                     

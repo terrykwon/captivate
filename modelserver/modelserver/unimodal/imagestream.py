@@ -1,3 +1,4 @@
+from datetime import datetime
 from threading import Thread
 from queue import Queue
 from collections import deque
@@ -56,8 +57,9 @@ class ImageStream:
 
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_num = int(self.video_capture.get(cv2.CAP_PROP_POS_FRAMES))
+            video_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-            self.buffer.append((frame,frame_num))
+            self.buffer.append([frame,frame_num,video_time])
             self.lock.release()
 
             time.sleep(0.01) # give time for dump() to acquire lock
@@ -78,7 +80,9 @@ class ImageStream:
 
         self.lock.acquire()
         while len(self.buffer) > 0:
-            frames.append(self.buffer.popleft())
+            # frames.append(self.buffer.popleft())
+            frames.append(self.buffer.pop())
+            self.buffer.clear()
         self.lock.release()
 
         return frames

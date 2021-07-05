@@ -25,7 +25,9 @@ class Guidance :
             id = guide[4]
             color = guide[5]
 
-            guide_dict[object_name][word] = dict({'sentence': sentence, 'highlight': highlight, 'id': id, 'color' : color, 'weight': 1})
+            weight = 6-int(id[-1])
+
+            guide_dict[object_name][word] = dict({'sentence': sentence, 'highlight': highlight, 'id': id, 'color' : color, 'weight': weight})
 
 
         return dict(guide_dict)

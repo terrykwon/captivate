@@ -322,7 +322,7 @@ class ModelServer:
                     object_classnames = result['object_classnames']
                     face_bboxes = result['face_bboxes']
                     gaze_targets = result['gaze_targets']
-                    camera_id = result['camera_id']
+                    camera_id = result['camera_id']-1
                     frame_num = result['frame_num']
                     video_time = result['video_time']
 

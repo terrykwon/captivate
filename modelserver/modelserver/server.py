@@ -65,11 +65,11 @@ class ModelServer:
         self.queue = Queue() # thread-safe
 
         ## for target weight decay (ms)
-        self.time_decay = int(round(time.time() * 1000)) 
+        self.curr_time = int(round(time.time() * 1000)) 
 
         
         self.visual_process = [ Process(target=visual.run, 
-                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(1, 4) ]
+                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(1, 3) ]
 
         self.audial_process = Process(target=audial_infinite.run, 
                 args=('rtmp://video:1935/captivate/test_audio', self.queue, None), daemon=True)
@@ -79,14 +79,16 @@ class ModelServer:
         # self.audial_process = Process(target=audial_infinite.run, args=('rtmp://video:1935/captivate/test', self.queue, None), daemon=True)
         # self.visualizer = [Visualizer(0)]
 
-        self.visualizer = [ Visualizer(camera_id) for camera_id in range(1, 4) ]
+        self.visualizer = [ Visualizer(camera_id) for camera_id in range(1, 3) ]
 
 
         self.Khaiii_api = KhaiiiApi()
 
         self.guidance = Guidance(guide_file_path)
 
-        self.objects = self.guidance.get_object_names()
+        self.toys = self.guidance.get_toys()
+
+        print(self.toys)
 
         self.visual_classes = {
             'dog' : '강아지',
@@ -103,12 +105,7 @@ class ModelServer:
             'baby' : '아기',
         }
     
-        self.context = self.guidance.get_object_context()
 
-        self.candidates = self.guidance.get_candidates()
-
-        ## init recommendation (first send)
-        self.get_recommendations()
         
         print('Init modelserver done')
 
@@ -137,36 +134,33 @@ class ModelServer:
         return attended_objects
         
 
-    def update_context(self, modality, targets):
+    def update_context(self, modality, targets, displayed_phrases):
         ''' Adds weight to the detected objects: by `alpha` for a single visual
             frame and by `beta` for an audial utterance.
         '''
-        if modality not in {'visual', 'audial'}:
+        if modality == 'visual':
+            alpha = 0.017 / 4   
+        elif modality == 'audial':
+            alpha = 0.1
+        else:
             raise ValueError('modality must be one of visual or audial')
         
 
         ## get distribution
         target_length = 0
-
         target_dist = defaultdict(float)
         for t in targets:
-            if t in self.objects:
+            if t in self.guidance.toy_list:
                 target_dist[t] += 1
                 target_length += 1
-        
-        alpha = 0.017 / 4
-        beta = 0.1
 
         if target_length != 0:
-            for o in self.objects:
-                if modality == 'visual':
-                    self.context[o] = self.context[o] * (1-alpha) + target_dist[o] * alpha / target_length
-                if modality == 'audial':
-                    self.context[o] = self.context[o] * (1-beta) + target_dist[o] * beta / target_length
-        
-        recommendations = self.get_recommendations()
+            for toy in self.toys:
+                toy.update_weight(target_dist,target_length,alpha)
 
-        return recommendations
+        new_phrases = self.get_recommendations()
+
+        return new_phrases
 
     def get_recommendations(self):
         ''' Returns a list of recommended words.
@@ -177,16 +171,15 @@ class ModelServer:
             recalculating weights and sorting every time...
         '''
         N = 6 # Total number of words to recommend
-        # N_h = N/2
-        # count = N_h
         count = N
         
         recommendations = [] # list to order
+        displayed_phrases = []
 
 
-        for item in sorted(self.context.items(), key = lambda x: x[1], reverse=True):
-            obj = item[0]
-            weight = item[1]
+        for item in sorted(self.toys, key = lambda x: x.weight, reverse=True):
+            obj = item.toy_name
+            weight = item.weight
             
             # number of targets to recommend for this word
             n = math.ceil(weight * N)
@@ -196,22 +189,27 @@ class ModelServer:
                 n = count
             count -= n
             
-            heap_candidates = heapq.nlargest(int(n), self.candidates[obj].items(), key = lambda x : math.floor(x[1]['weight']))
+            heap_candidates = heapq.nlargest(int(n), item.phrases , key = lambda x : math.ceil(x.weight))
             
-            # top_candidates = [ {c[0] : c[1]['sentence']} for c in heap_candidates]
+            
             for c in heap_candidates:
+
                 recommendations.append(
                     {
                         'object' : obj,
-                        'target_word' : c[0],
-                        'target_sentence' : c[1]['sentence'],
-                        'highlight' : c[1]['highlight'],
-                        'id' : c[1]['id'],
-                        'color' : c[1]['color']
+                        'target_word' : c.word,
+                        'target_sentence' : c.phrase,
+                        'highlight' : c.highlight,
+                        'id' : c.id,
+                        'color' : c.color
                     }
                 )
-        
-        # recommendations = sorted(recommendations, key = lambda x: len(x['target_words']), reverse=True)
+
+
+                displayed_phrases.append(c.phrase)
+            
+            for toy in self.toys:
+                toy.set_display(displayed_phrases)
         
         recommendation_to_queue = {
             'tag' : 'recommendation',
@@ -221,11 +219,10 @@ class ModelServer:
         if self.result_queue:
             self.result_queue.put(recommendation_to_queue)
 
-            
-        return recommendations
+        return displayed_phrases
 
     
-    def on_spoken(self, words):
+    def on_spoken(self, words, displayed_phrases):
         ''' Action for when a target word is spoken. TODO
 
             * This isn't the name of the object! It's the candidate.
@@ -233,17 +230,14 @@ class ModelServer:
             The word's relevance should be decreased a bit so that the parent
             diversifies words.
         '''
-        gamma = 0.5 # amount to decrement the relevance by //0.01
-        
         target_spoken = []
         is_spoken_word = 0
 
         for word in words:
-            for obj in self.candidates:
-                for cand in self.candidates[obj]:
-                    if cand == word:
-                        self.candidates[obj][cand]['weight'] = self.candidates[obj][cand]['weight'] - gamma
-                        is_spoken_word = 1
+            for toy in self.toys:
+                if toy.is_phrase_spoken(word, displayed_phrases):
+                    is_spoken_word = 1
+
             if is_spoken_word:
                 target_spoken.append(word)
                 is_spoken_word = 0
@@ -258,16 +252,17 @@ class ModelServer:
             if self.result_queue:
                 self.result_queue.put(target_to_queue)
         return target_spoken
+    
+    def time_decay(self):
+        curr_time = int(round(time.time() * 1000))
+        
+        is_phrase_ordered = 0
+        for toy in self.toys:
+            if toy.track_displayed_time(curr_time):
+                is_phrase_ordered = 1
+        
+        return is_phrase_ordered
 
-    def decay_target_weights(self, recommendation):
-
-        for target_recommend in recommendation:
-            target_word = target_recommend['target_word']
-
-            for obj in self.candidates:
-                for cand in self.candidates[obj]:
-                    if cand == target_word:
-                        self.candidates[obj][cand]['weight'] = self.candidates[obj][cand]['weight'] - 1
 
     def run(self, visualize=False):
         ''' Main loop.
@@ -286,7 +281,9 @@ class ModelServer:
         spoken_words_update = []
         target_spoken = []
 
-        recommendations = []
+        displayed_phrases = []
+        phrases_in = []
+        phrases_out = []
 
         image = None
         object_bboxes = []
@@ -301,12 +298,20 @@ class ModelServer:
 
         
 
+        ## init recommendation (first send)
+        displayed_phrases = self.get_recommendations()
+
 
         while True:
             try:
                 ## restart audio process when there is no signal
                 if not self.audial_process.is_alive():
                     self.audial_process.start()
+
+
+                if self.time_decay():
+                    displayed_phrases= self.get_recommendations()
+                
 
                 # This blocks until an item is available
                 result = self.queue.get(block=True, timeout=None) 
@@ -336,12 +341,8 @@ class ModelServer:
                     
                     # update if there's objects
                     if len(target_objects) != 0:
-                        recommendations = self.update_context('visual', target_objects)
-
-                    curr_time = int(round(time.time() * 1000))
-                    if curr_time - self.time_decay > 60000 :
-                        self.decay_target_weights(recommendations)
-                        self.time_decay = curr_time
+                        displayed_phrases = self.update_context('visual', target_objects, displayed_phrases)
+                                        
 
                     if visualize:
                         visualizer_curr = self.visualizer[camera_id]
@@ -372,20 +373,14 @@ class ModelServer:
                     
                     spoken_words_update = spoken_words.copy()
                     
-                    # print("spoken_words_prev")
-                    # print(spoken_words_prev)
-                    # print("spoken_words")
-                    # print(spoken_words)
                     
                     for word in spoken_words_prev:
                         if word in spoken_words_update:
                             spoken_words_update.remove(word)
                     
-                    # print("spoken_words_update")
-                    # print(spoken_words_update)
                     
                     # update spoken & target word weight
-                    spoken = self.on_spoken(spoken_words_update)
+                    spoken = self.on_spoken(spoken_words_update, displayed_phrases)
                     if len(spoken) != 0:
                         target_spoken = spoken
 
@@ -396,12 +391,13 @@ class ModelServer:
 
                         # update spoken objects list
                         for word in spoken_words:
-                            if word in self.objects:
+                            if word in self.guidance.toy_list:
                                 spoken_objects.append(word)
 
                         # update object context
                         if len(spoken_objects) != 0 :
-                            recommendations = self.update_context('audial', spoken_objects)
+                            displayed_phrases = self.update_context('audial', spoken_objects, displayed_phrases)
+                            
                         
                         spoken_words.clear()
                         spoken_words_prev.clear()
@@ -437,6 +433,6 @@ class ModelServer:
                     else :
                         spoken_words.append(m.lex)
         except:
-            print('morph')
+            print('morph analyze error')
         
         return spoken_words

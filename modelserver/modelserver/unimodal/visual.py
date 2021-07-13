@@ -56,7 +56,6 @@ class VisualMonitor:
         imagestream.start()
 
         camera_id = url[-1]
-        # camera_id = '0'
 
         while imagestream.running:
             frames = imagestream.dump()
@@ -92,6 +91,7 @@ class VisualMonitor:
         }
 
         frame_pil = PIL.Image.fromarray(frame.astype('uint8'), 'RGB')
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
         face_bboxes = self.face_detector.predict(frame)
 

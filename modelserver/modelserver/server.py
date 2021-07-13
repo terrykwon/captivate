@@ -27,7 +27,7 @@ import json
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/workspace/modelserver/default-demo-app-c4bc3-b67061a9c4b1.json"
 
 
-guide_file_path = '/workspace/modelserver/modelserver/guidance/demo_9_add_id.csv'
+guide_file_path = '/workspace/modelserver/modelserver/guidance/0713_demo.csv'
 
 def start(url, queue, is_visualize):
     print('server start')
@@ -69,7 +69,7 @@ class ModelServer:
 
         
         self.visual_process = [ Process(target=visual.run, 
-                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(1, 3) ]
+                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(1, 4) ]
 
         self.audial_process = Process(target=audial_infinite.run, 
                 args=('rtmp://video:1935/captivate/test_audio', self.queue, None), daemon=True)
@@ -77,9 +77,10 @@ class ModelServer:
         # ## sync test
         # self.visual_process = [ Process(target=visual.run, args=('rtmp://video:1935/captivate/test', self.queue, None), daemon=True) ]
         # self.audial_process = Process(target=audial_infinite.run, args=('rtmp://video:1935/captivate/test', self.queue, None), daemon=True)
-        
+        # self.visualizer = [Visualizer(0)]
 
-        self.visualizer = [ Visualizer(camera_id) for camera_id in range(1, 3) ]
+        self.visualizer = [ Visualizer(camera_id) for camera_id in range(1, 4) ]
+
 
         self.Khaiii_api = KhaiiiApi()
 
@@ -88,22 +89,18 @@ class ModelServer:
         self.objects = self.guidance.get_object_names()
 
         self.visual_classes = {
-            'ball' : '공',
             'dog' : '강아지',
             'cat' : '고양이',
-            'shoe' : '신발',
-            'spoon' : '숟가락',
-            'bowl' : '그릇',
-            'fork' : '포크',
-            'bus' : '버스',
-            'bear' : '곰돌이',
-            'bicycle' : '자전거',
             'fish' : '물고기',
-            'mirror' : '거울',
-            'toothbrush' : '칫솔',
-            'sock' : '양말',
-            'rabbit' : '토끼',
-            'flower' : '꽃'
+            'bear' : '곰돌이',
+            'flower' : '꽃',
+            'spoon' : '숟가락',
+            'bicycle' : '자전거',
+            'shoe' : '신발',
+            'ball' : '공',
+            'bus' : '버스',
+            'bag' : '가방',
+            'baby' : '아기',
         }
     
         self.context = self.guidance.get_object_context()
@@ -158,7 +155,7 @@ class ModelServer:
                 target_length += 1
         
         alpha = 0.017 / 4
-        beta = 0.05
+        beta = 0.1
 
         if target_length != 0:
             for o in self.objects:
@@ -199,7 +196,7 @@ class ModelServer:
                 n = count
             count -= n
             
-            heap_candidates = heapq.nlargest(int(n), self.candidates[obj].items(), key = lambda x : round(x[1]['weight']))
+            heap_candidates = heapq.nlargest(int(n), self.candidates[obj].items(), key = lambda x : math.floor(x[1]['weight']))
             
             # top_candidates = [ {c[0] : c[1]['sentence']} for c in heap_candidates]
             for c in heap_candidates:
@@ -270,7 +267,7 @@ class ModelServer:
             for obj in self.candidates:
                 for cand in self.candidates[obj]:
                     if cand == target_word:
-                        self.candidates[obj][cand]['weight'] = self.candidates[obj][cand]['weight'] - 0.1
+                        self.candidates[obj][cand]['weight'] = self.candidates[obj][cand]['weight'] - 1
 
     def run(self, visualize=False):
         ''' Main loop.
@@ -307,7 +304,6 @@ class ModelServer:
 
         while True:
             try:
-
                 ## restart audio process when there is no signal
                 if not self.audial_process.is_alive():
                     self.audial_process.start()
@@ -343,7 +339,7 @@ class ModelServer:
                         recommendations = self.update_context('visual', target_objects)
 
                     curr_time = int(round(time.time() * 1000))
-                    if curr_time - self.time_decay > 6000 :
+                    if curr_time - self.time_decay > 60000 :
                         self.decay_target_weights(recommendations)
                         self.time_decay = curr_time
 
@@ -357,8 +353,9 @@ class ModelServer:
                                     gaze_targets[i])
 
                         #test for sync
-                        # transcript_sync = video_time+ " "+ transcript
-                        image = visualizer_curr.add_captions_recommend(image,transcript,target_spoken)
+                        transcript_sync = video_time+ " "+ transcript
+                        # image = visualizer_curr.add_captions_recommend(image,transcript,target_spoken)
+                        image = visualizer_curr.add_captions_recommend(image,transcript_sync,target_spoken)
                         visualizer_curr.visave(image, frame_num)
                     target_spoken.clear()
 
@@ -412,11 +409,16 @@ class ModelServer:
                         
                     if not len(spoken_words) < len(spoken_words_prev):
                         spoken_words_prev = spoken_words
-            except:
+
+            except Exception as excp:
+                print(type(excp))
+                print(excp.args)
+                print(excp)
                 ## close processes
                 self.audial_process.terminate()
                 [vp.terminate() for vp in self.visual_process]
-                print("exit server run")        
+                print("exit server run")      
+                break  
 
     def morph_analyze(self, transcript):
         spoken_words = []

@@ -55,14 +55,14 @@ class ImageStream:
                 self.lock.release()
                 return
 
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) 
             frame_num = int(self.video_capture.get(cv2.CAP_PROP_POS_FRAMES))
             video_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             self.buffer.append([frame,frame_num,video_time])
             self.lock.release()
 
-            time.sleep(0.01) # give time for dump() to acquire lock
+            # time.sleep(0.001) # give time for dump() to acquire lock
 
     def dump(self):
         ''' Empties the current queue.
@@ -76,7 +76,7 @@ class ImageStream:
 
         while len(self.buffer) == 0:
             # this typically only happens for the first frame, before inference
-            time.sleep(0.01) 
+            time.sleep(0.001) 
 
         self.lock.acquire()
         while len(self.buffer) > 0:

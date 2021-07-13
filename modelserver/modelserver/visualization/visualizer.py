@@ -86,9 +86,10 @@ class Visualizer:
             width = 1280
             height = 1080
             resized = cv2.resize(image, (width, height))
+            frame_rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
             
             while (self.curr_frame_num <= frame_num ):
-                self.out.write(cv2.cvtColor(resized,cv2.COLOR_BGR2RGB))
+                self.out.write(cv2.cvtColor(frame_rgb,cv2.COLOR_BGR2RGB))
                 self.curr_frame_num += 1
         
     

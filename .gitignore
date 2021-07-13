@@ -7,4 +7,5 @@ modelserver/*.pt
 modelserver/*.pth
 modelserver/*.avi
 modelserver/*.mp4
-
+modelserver/models/train
+*.mp4

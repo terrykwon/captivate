@@ -17,7 +17,6 @@ import math
 import numpy as np
 import heapq
 
-from khaiii import KhaiiiApi
 
 from collections import defaultdict
 import re
@@ -69,26 +68,22 @@ class ModelServer:
 
         
         self.visual_process = [ Process(target=visual.run, 
-                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(1, 3) ]
+                args=(self.stream_url+str(camera_id), self.queue, None), daemon=True) for camera_id in range(1, 4) ]
 
         self.audial_process = Process(target=audial_infinite.run, 
-                args=('rtmp://video:1935/captivate/test_audio', self.queue, None), daemon=True)
+                args=('rtmp://video:1935/captivate/test1', self.queue, None), daemon=True)
 
         # ## sync test
         # self.visual_process = [ Process(target=visual.run, args=('rtmp://video:1935/captivate/test', self.queue, None), daemon=True) ]
         # self.audial_process = Process(target=audial_infinite.run, args=('rtmp://video:1935/captivate/test', self.queue, None), daemon=True)
         # self.visualizer = [Visualizer(0)]
 
-        self.visualizer = [ Visualizer(camera_id) for camera_id in range(1, 3) ]
-
-
-        self.Khaiii_api = KhaiiiApi()
+        self.visualizer = [ Visualizer(camera_id) for camera_id in range(1, 4) ]
 
         self.guidance = Guidance(guide_file_path)
 
         self.toys = self.guidance.get_toys()
 
-        print(self.toys)
 
         self.visual_classes = {
             'dog' : '강아지',
@@ -134,7 +129,7 @@ class ModelServer:
         return attended_objects
         
 
-    def update_context(self, modality, targets, displayed_phrases):
+    def update_context(self, modality, targets):
         ''' Adds weight to the detected objects: by `alpha` for a single visual
             frame and by `beta` for an audial utterance.
         '''
@@ -263,6 +258,13 @@ class ModelServer:
         
         return is_phrase_ordered
 
+    def restart_audial_process(self):
+        self.audial_process.join()
+
+        self.audial_process = Process(target=audial_infinite.run, args=('rtmp://video:1935/captivate/test1', self.queue, None), daemon=True)
+        self.audial_process.start()
+
+
 
     def run(self, visualize=False):
         ''' Main loop.
@@ -282,8 +284,6 @@ class ModelServer:
         target_spoken = []
 
         displayed_phrases = []
-        phrases_in = []
-        phrases_out = []
 
         image = None
         object_bboxes = []
@@ -296,6 +296,7 @@ class ModelServer:
         audio_time = ''
         video_time = ''
 
+
         
 
         ## init recommendation (first send)
@@ -304,14 +305,19 @@ class ModelServer:
 
         while True:
             try:
+                curr_time = int(round(time.time() * 1000))
+
                 ## restart audio process when there is no signal
                 if not self.audial_process.is_alive():
-                    self.audial_process.start()
+                    self.restart_audial_process()
 
-
-                if self.time_decay():
+                if self.time_decay(): ## True when there are re-ordered phrases
                     displayed_phrases= self.get_recommendations()
                 
+                # after_time_decay_time = int(round(time.time() * 1000))
+                # print("____________________________________")
+                # print("time_decay_time : "+str((after_time_decay_time-curr_time)/1000))
+
 
                 # This blocks until an item is available
                 result = self.queue.get(block=True, timeout=None) 
@@ -341,7 +347,7 @@ class ModelServer:
                     
                     # update if there's objects
                     if len(target_objects) != 0:
-                        displayed_phrases = self.update_context('visual', target_objects, displayed_phrases)
+                        displayed_phrases = self.update_context('visual', target_objects)
                                         
 
                     if visualize:
@@ -354,57 +360,62 @@ class ModelServer:
                                     gaze_targets[i])
 
                         #test for sync
-                        transcript_sync = video_time+ " "+ transcript
+                        transcript_sync = "video time : "+video_time+ "// audio time : "+audio_time+"// "+transcript
                         # image = visualizer_curr.add_captions_recommend(image,transcript,target_spoken)
                         image = visualizer_curr.add_captions_recommend(image,transcript_sync,target_spoken)
                         visualizer_curr.visave(image, frame_num)
                     target_spoken.clear()
 
 
+                    # after_visual_result_time = int(round(time.time() * 1000))
+                    # print("visual_processing_time : "+str((after_visual_result_time-after_time_decay_time)/1000))
+
+
                 elif result['from'] == 'audio':
 
                     transcript = result['transcript']
 
+                    spoken_words_update = result['spoken_words_update']
+
                     audio_time = result['audio_time']
 
-                    print(transcript)
-                    
-                    spoken_words = self.morph_analyze(transcript)
-                    
-                    spoken_words_update = spoken_words.copy()
-                    
-                    
-                    for word in spoken_words_prev:
-                        if word in spoken_words_update:
-                            spoken_words_update.remove(word)
-                    
+
                     
                     # update spoken & target word weight
                     spoken = self.on_spoken(spoken_words_update, displayed_phrases)
                     if len(spoken) != 0:
-                        target_spoken = spoken
+                        target_spoken = spoken  
+
+
+                    spoken_objects = []
+
+                    for word in spoken_words_update:
+                        if word in self.guidance.toy_list:
+                            spoken_objects.append(word)
+                    
+                    if len(spoken_objects) != 0 :
+                            displayed_phrases = self.update_context('audial', spoken_objects)
+                    
+                    # after_audial_result_time = int(round(time.time() * 1000))
+                    # print("audial_processing_time : "+str((after_audial_result_time-after_time_decay_time)/1000))
 
 
                     # if transcript is final
-                    if result['is_final']: 
-                        spoken_objects = []
+                    # if result['is_final']: 
+                    #     spoken_objects = []
 
-                        # update spoken objects list
-                        for word in spoken_words:
-                            if word in self.guidance.toy_list:
-                                spoken_objects.append(word)
+                    #     # update spoken objects list
+                    #     for word in spoken_words:
+                    #         if word in self.guidance.toy_list:
+                    #             spoken_objects.append(word)
 
-                        # update object context
-                        if len(spoken_objects) != 0 :
-                            displayed_phrases = self.update_context('audial', spoken_objects, displayed_phrases)
+                    #     # update object context
+                    #     if len(spoken_objects) != 0 :
+                    #         displayed_phrases = self.update_context('audial', spoken_objects)
                             
                         
-                        spoken_words.clear()
-                        spoken_words_prev.clear()
                     
                         
-                    if not len(spoken_words) < len(spoken_words_prev):
-                        spoken_words_prev = spoken_words
 
             except Exception as excp:
                 print(type(excp))
@@ -416,23 +427,4 @@ class ModelServer:
                 print("exit server run")      
                 break  
 
-    def morph_analyze(self, transcript):
-        spoken_words = []
-        
-        try:
-            line_pos = self.Khaiii_api.analyze(transcript)
-
-            for w in line_pos:
-                for m in w.morphs:
-                    if m.tag in ['NNG', 'NR', 'MAG']:
-                        spoken_words.append(m.lex)
-                    elif m.tag in ['VV', 'VA']:
-                        spoken_words.append(m.lex + '다')
-                    elif m.tag in ['XR']:
-                        spoken_words.append(m.lex+'하다')
-                    else :
-                        spoken_words.append(m.lex)
-        except:
-            print('morph analyze error')
-        
-        return spoken_words
+    

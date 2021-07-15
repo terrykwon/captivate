@@ -15,11 +15,14 @@ STREAMING_LIMIT = 240000  # 4 minutes
 SAMPLE_RATE = 44100
 
 # speech context - word classes
-speech_context = speech.SpeechContext(phrases=['공','신발','숟가락','그릇','포크','버스','자전거','물고기','강아지','고양이','거울','칫솔','양말','선물','꽃','텔레비전'])
+speech_context = speech.SpeechContext(phrases=['공','신발','숟가락','버스','자전거','물고기','강아지','고양이','가방','곰돌이','꽃','아기'])
 
 
 # CHUNK_SIZE = int(SAMPLE_RATE / 5)  # 200ms
 CHUNK_SIZE = 8192  # 100ms
+
+
+from khaiii import KhaiiiApi
 
 
 
@@ -63,6 +66,10 @@ class ResumableSpeechRecognizer:
         self.new_stream = True
         self.closed = True
         self.url = url
+
+
+        self.Khaiii_api = KhaiiiApi()
+        self.spoken_words_prev = []
         
     def __enter__(self):
         self.closed = False
@@ -207,7 +214,43 @@ class ResumableSpeechRecognizer:
            
             
             
+    def analyze_transcript(self, transcript):
+        print(transcript)
+                    
+        spoken_words = self.morph_analyze(transcript)
+        
+        spoken_words_update = spoken_words.copy()
+        
+        
+        for word in self.spoken_words_prev:
+            if word in spoken_words_update:
+                spoken_words_update.remove(word)
 
+        if not len(spoken_words) < len(self.spoken_words_prev):
+            self.spoken_words_prev = spoken_words
+        
+        return spoken_words_update
+                    
+    def morph_analyze(self, transcript):
+        spoken_words = []
+        
+        try:
+            line_pos = self.Khaiii_api.analyze(transcript)
+
+            for w in line_pos:
+                for m in w.morphs:
+                    if m.tag in ['NNG', 'NR', 'MAG']:
+                        spoken_words.append(m.lex)
+                    elif m.tag in ['VV', 'VA']:
+                        spoken_words.append(m.lex + '다')
+                    elif m.tag in ['XR']:
+                        spoken_words.append(m.lex+'하다')
+                    else :
+                        spoken_words.append(m.lex)
+        except:
+            print('morph analyze error')
+        
+        return spoken_words            
 
 
     def listen_print_loop(self, responses, queue):
@@ -239,6 +282,8 @@ class ResumableSpeechRecognizer:
             
             transcript = result.alternatives[0].transcript
             confidence = result.alternatives[0].confidence
+
+            spoken_words_update = self.analyze_transcript(transcript)
             
 
             result_seconds = 0
@@ -266,6 +311,7 @@ class ResumableSpeechRecognizer:
             result_to_queue = {
                 'from': 'audio',
                 'transcript': transcript,
+                'spoken_words_update' : spoken_words_update,
                 'confidence': confidence,
                 'time' : corrected_time,
                 'is_final' : result.is_final,
@@ -279,6 +325,7 @@ class ResumableSpeechRecognizer:
 
                 self.is_final_end_time = self.result_end_time
                 self.last_transcript_was_final = True
+                self.spoken_words_prev.clear()
 
                 # Exit recognition if any of the transcribed phrases could be
                 # one of our keywords.
@@ -291,7 +338,7 @@ class ResumableSpeechRecognizer:
 # 
             else:
                 
-                if queue:
+                if queue and len(spoken_words_update) > 0:
                     queue.put(result_to_queue)
                 
 

@@ -22,7 +22,6 @@ class ImageStream:
 
         print('VideoCaptured opened at', path)
 
-        # self.buffer = Queue(maxsize=buffer_length)
         self.buffer = deque(maxlen=buffer_length)
         self.running = False # flag
         self.buffer_length = buffer_length
@@ -44,7 +43,6 @@ class ImageStream:
     def update(self):
         # print('update')
         while self.running:
-            self.lock.acquire()
             # print('acquired lock in update')
             is_read, frame = self.video_capture.read()
             # print('is_read', is_read)
@@ -52,7 +50,6 @@ class ImageStream:
             if not is_read:
                 print('is not read, stopping')
                 self.running = False
-                self.lock.release()
                 return
 
             # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) 
@@ -60,9 +57,7 @@ class ImageStream:
             video_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             self.buffer.append([frame,frame_num,video_time])
-            self.lock.release()
 
-            # time.sleep(0.001) # give time for dump() to acquire lock
 
     def dump(self):
         ''' Empties the current queue.
@@ -78,11 +73,10 @@ class ImageStream:
             # this typically only happens for the first frame, before inference
             time.sleep(0.001) 
 
-        self.lock.acquire()
         while len(self.buffer) > 0:
             # frames.append(self.buffer.popleft())
             frames.append(self.buffer.pop())
             self.buffer.clear()
-        self.lock.release()
+        print("frame_dumped")
 
         return frames

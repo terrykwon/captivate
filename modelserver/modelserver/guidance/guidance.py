@@ -42,8 +42,14 @@ class Toy:
         
         for phrase in self.phrases:
             if phrase.phrase in displayed_phrases:
-                phrase.is_displayed = True
-                phrase.on_displayed()
+                if phrase.is_displayed == True:
+                    pass
+                elif phrase.is_displayed == False:
+                    phrase.is_displayed = True
+                    phrase.on_displayed()
+                else:
+                    print("is_displayed error")
+                
             else:
                 phrase.is_displayed = False
             

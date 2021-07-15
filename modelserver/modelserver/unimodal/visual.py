@@ -62,6 +62,7 @@ class VisualMonitor:
             frame = frames[-1] # most recent?
             results = self.predict_single_frame(frame[0])
 
+
             results['frame_num'] = frame[1]
             results['camera_id'] = int(camera_id)
 
@@ -91,7 +92,6 @@ class VisualMonitor:
         }
 
         frame_pil = PIL.Image.fromarray(frame.astype('uint8'), 'RGB')
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
         face_bboxes = self.face_detector.predict(frame)
 

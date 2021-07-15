@@ -49,7 +49,7 @@ class Visualizer:
         self.font = ImageFont.truetype('/workspace/modelserver/modelserver/visualization/NotoSansCJKkr-Regular.otf', 32)
 
         self.fourcc = cv2.VideoWriter_fourcc(*'DIVX')
-        self.out = cv2.VideoWriter('/workspace/modelserver/output'+str(camera_id)+'.avi',self.fourcc, 30.0, (1280,1080))
+        self.out = cv2.VideoWriter('/workspace/modelserver/output'+str(camera_id)+'.avi',self.fourcc, 15.0, (1280,1080))
         self.curr_frame_num = 0
 
     # def clear(self):

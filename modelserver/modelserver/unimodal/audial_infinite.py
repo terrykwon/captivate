@@ -215,7 +215,6 @@ class ResumableSpeechRecognizer:
             
             
     def analyze_transcript(self, transcript):
-        print(transcript)
                     
         spoken_words = self.morph_analyze(transcript)
         

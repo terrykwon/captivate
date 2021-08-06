@@ -7,6 +7,8 @@ from torch import multiprocessing
 from torch.multiprocessing import Process, Queue
 
 import sys
+
+from websockets.exceptions import ConnectionClosedOK
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 
 import asyncio
@@ -16,6 +18,12 @@ import json
 from modelserver import server
 
 
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '1,2,3'
+
+statistic_num = 8
+
+
 url = 'rtmp://video:1935/captivate/test'
 
 data_queue = Queue()
@@ -23,16 +31,24 @@ data_queue = Queue()
 statistic_word = defaultdict(int)
 statistic_object = defaultdict(int)
 
+server_process = None
+
 def get_list(target_dict):
     target_list = []
     for k, v in target_dict.items():
         target_list.append({'name':k, 'count':v})
 
+    target_list = target_list[:8]
+
     return target_list
 
-async def consumer(message, server_process, websocket):
+async def consumer(message, websocket):
 
     if message == "open_connection":
+        killtree(os.getpid(), False)
+
+        server_process = Process(target=server.start, args=(url, data_queue, True)) 
+
         server_process.start()
 
     elif message == "end_process":
@@ -51,20 +67,18 @@ async def consumer(message, server_process, websocket):
     elif message == "close_connection":
         await websocket.close()
         print("websocket connection closed!!!")
-        killtree(server_process.pid, True)
+        killtree(os.getpid(), False)
         
     else:
         print("data received from client")
 
 
 async def consumer_handler(websocket, path):
-    server_process = Process(target=server.start, args=(url, data_queue, True))
 
     while not websocket.closed :
         message = await websocket.recv()
-        await consumer(message, server_process, websocket)
+        await consumer(message, websocket)
     
-    killtree(server_process.pid, True)
 
 async def producer():
     if not data_queue.empty():
@@ -89,6 +103,7 @@ async def producer_handler(websocket, path):
         message = await producer()
         if message:
             await websocket.send(message)
+                
     
 
         
@@ -103,7 +118,11 @@ async def websocket_handler(websocket, path):
             [consumer_task, producer_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
-    except:
+
+    except Exception as excp:
+        print(type(excp))
+        print(excp.args)
+        print(excp)
         killtree(os.getpid(), False)
     
     # for task in pending:

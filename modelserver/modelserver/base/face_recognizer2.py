@@ -2,6 +2,8 @@ import insightface
 from insightface.utils import face_align
 import numpy as np
 
+
+
 class FaceRecognizer(): 
     ''' does detection + recognition.
         returns bounding box + identity?

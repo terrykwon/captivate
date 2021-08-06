@@ -1,8 +1,10 @@
 from modelserver.base.base_predictor import BasePredictor
-
 import insightface
 import numpy as np
 
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
 
 class FaceDetector(BasePredictor):
 
@@ -10,6 +12,7 @@ class FaceDetector(BasePredictor):
         self.model = insightface.model_zoo.get_model('retinaface_r50_v1')
 
         # ctx_id: gpu number, non-max suppression threshold, no idea
+        gpu_id -= 1
         self.model.prepare(ctx_id=gpu_id, nms=0.4)
 
 
@@ -34,7 +37,9 @@ class FaceDetector(BasePredictor):
             bbox = self._enlarge_bbox(bbox, 0.2)
             bboxes.append(bbox)
 
-        return np.array(bboxes)
+        bboxes = sorted(bboxes, key= lambda x : x[1]-x[3])
+
+        return np.array(bboxes[:2])
 
 
     def _enlarge_bbox(self, bbox, ratio):

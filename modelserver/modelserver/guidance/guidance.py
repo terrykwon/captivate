@@ -85,7 +85,7 @@ class Phrase:
         self.start_displayed = int(round(time.time() * 1000))
 
     def track_displayed_time(self, curr_time):
-        if curr_time - self.start_displayed > 60000:
+        if curr_time - self.start_displayed > 120000:
             self.weight -= 1
             return True
         return False

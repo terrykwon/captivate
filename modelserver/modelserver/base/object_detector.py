@@ -7,6 +7,9 @@ from detectron2.config import get_cfg
 from detectron2.data import MetadataCatalog
 
 
+
+
+
 class ObjectDetector(BasePredictor):
 
     def __init__(self):

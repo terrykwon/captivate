@@ -15,6 +15,8 @@ import PIL
 from PIL import ImageFont, ImageDraw
 import textwrap
 
+from datetime import datetime, timezone, timedelta
+
 
 class Visualizer:
 
@@ -32,6 +34,7 @@ class Visualizer:
         'orange': '#ff9812',
         'red': '#ff4545',
         'green': '#00ff8c',
+        'gray' : '#4a4949'
     }
 
     # converts hex to rgb
@@ -48,8 +51,11 @@ class Visualizer:
         self.scale = scale
         self.font = ImageFont.truetype('/workspace/modelserver/modelserver/visualization/NotoSansCJKkr-Regular.otf', 32)
 
+        start_time = datetime.now(timezone(timedelta(hours=9))).strftime('%m%d_%H:%M_')
+        
+
         self.fourcc = cv2.VideoWriter_fourcc(*'DIVX')
-        self.out = cv2.VideoWriter('/workspace/modelserver/output'+str(camera_id)+'.avi',self.fourcc, 15.0, (1280,1080))
+        self.out = cv2.VideoWriter('/workspace/modelserver/'+start_time+'output_'+str(camera_id)+'.avi',self.fourcc, 15.0, (1280,1080))
         self.curr_frame_num = 0
 
     # def clear(self):
@@ -86,10 +92,9 @@ class Visualizer:
             width = 1280
             height = 1080
             resized = cv2.resize(image, (width, height))
-            frame_rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
             
             while (self.curr_frame_num <= frame_num ):
-                self.out.write(cv2.cvtColor(frame_rgb,cv2.COLOR_BGR2RGB))
+                self.out.write(cv2.cvtColor(resized,cv2.COLOR_BGR2RGB))
                 self.curr_frame_num += 1
         
     
@@ -107,7 +112,7 @@ class Visualizer:
 
         ### target spoken
         box = self.write_text(box, 'Target words', (20, 110), 
-                              Visualizer.COLORS_RGB['pink'])
+                              Visualizer.COLORS_RGB['lime'])
 
         target_string = ''
         for t in target_spoken:
@@ -116,30 +121,6 @@ class Visualizer:
         box = self.write_text(box, target_string, (20, 160), 
                               Visualizer.COLORS_RGB['white'])
         
-        ### recommendation
-        # box = self.write_text(box, 'Recommendation', (20, 260), 
-        #                       Visualizer.COLORS_RGB['pink'])
-        
-        # rec_string = ''
-        # rec_y = 260
-        # for item in recommendations:
-        #     obj_len = "{:<"+str(15-3*len(item['object']))+"}|"
-        #     rec_string = obj_len.format(item['object'])
-            
-        #     for i, t in enumerate(item['target_words']):
-        #         if i != 0 and i % 6 == 0:
-        #             box = self.write_text(box, rec_string, (20, rec_y+dy), 
-        #                         Visualizer.COLORS_RGB['white'])
-        #             rec_y += dy
-                    
-        #             rec_string = "               |"
-                    
-        #         tar_len = "{:^"+str(20-3*len(t))+"}|"
-        #         rec_string += tar_len.format(t)
-
-        #     box = self.write_text(box, rec_string, (20, rec_y+dy), 
-        #                         Visualizer.COLORS_RGB['white'])
-        #     rec_y += dy
         
         stacked = np.vstack((image, box))
 
@@ -155,12 +136,12 @@ class Visualizer:
         scale = width / 1280 * self.scale
 
         font = cv2.FONT_HERSHEY_SIMPLEX
-        fontScale = 1.0 * scale
-        font_thickness = int(2 * scale)
-        font_color = Visualizer.COLORS_RGB['blue']
+        fontScale = 0.8 * scale
+        font_thickness = int(1.5 * scale)
+        font_color = Visualizer.COLORS_RGB['gray']
 
-        box_thickness = int(2 * scale)
-        box_color = Visualizer.COLORS_RGB['cyan']
+        box_thickness = int(1 * scale)
+        box_color = Visualizer.COLORS_RGB['white']
 
         if bboxes == []:
             return
@@ -176,12 +157,12 @@ class Visualizer:
             left, top, right, bottom = np.around(bbox).astype('int')
 
             ## remove object rectangle for demo
-            # image = cv2.rectangle(image, (left, top), (right, bottom), 
-                    # box_color, box_thickness)
+            image = cv2.rectangle(image, (left, top), (right, bottom), 
+                    box_color, box_thickness)
 
             score = scores[i]
             text_bottom_left = (left, top)
-            text = '{} {:.2f}'.format(classname, score)
+            text = '{}'.format(classname)
             image = cv2.putText(image, text, text_bottom_left, font, fontScale,  
                             font_color, font_thickness, cv2.LINE_AA, False)
 
@@ -193,9 +174,9 @@ class Visualizer:
         height = image.shape[0]
         scale = width / 1280 * self.scale
 
-        color = Visualizer.COLORS_RGB['red']
+        color = Visualizer.COLORS_RGB['cyan']
         thickness = int(2 * scale) # in px 
-        radius = int(12 * scale)
+        radius = int(6 * scale)
 
         left, top, right, bottom = np.around(face_bbox).astype('int')
         focus = tuple(np.around(focus).astype('int'))
@@ -204,7 +185,8 @@ class Visualizer:
         start_point = ((left+right)//2, (bottom+top)//2)
         
         cv2.line(image, start_point, focus, color, thickness)
-        cv2.circle(image, focus, radius, color, thickness)
+
+        cv2.circle(image, focus, radius, color, -1)
 
 
     def write_text(self, image, text, location, color):
@@ -216,15 +198,13 @@ class Visualizer:
 
         image_pil = PIL.Image.fromarray(image)
         draw = ImageDraw.Draw(image_pil)
-        wrapped = textwrap.wrap(text, width=100)
+        wrapped = textwrap.wrap(text, width=80)
 
-        for line in wrapped:
+        for line in wrapped[-2:]:
             y += dy
             draw.text((x, y), line, font=self.font, fill=color)
         
         # in-place! image doesn't actually need to be returned
-        # image = cv2.putText(image, text, location, font, fontScale,  
-        #                 color, thickness, cv2.LINE_AA, False)
         image = np.array(image_pil)
 
         return image
@@ -236,8 +216,8 @@ class Visualizer:
         width = image.shape[1]
         height = image.shape[0]
         scale = width / 1280 * self.scale
-        color = Visualizer.COLORS_RGB['green']
-        thickness = int(2 * scale) # in px 
+        color = Visualizer.COLORS_RGB['cyan']
+        thickness = int(1 * scale) # in px 
 
         if bboxes == []:
             return image

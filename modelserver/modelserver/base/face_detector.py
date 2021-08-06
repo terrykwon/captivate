@@ -1,6 +1,6 @@
 from retinaface.pre_trained_models import get_model
-
 from base.base_predictor import BasePredictor
+
 
 
 class FaceDetector(BasePredictor):

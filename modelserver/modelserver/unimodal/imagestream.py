@@ -77,6 +77,5 @@ class ImageStream:
             # frames.append(self.buffer.popleft())
             frames.append(self.buffer.pop())
             self.buffer.clear()
-        print("frame_dumped")
 
         return frames

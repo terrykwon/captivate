@@ -19,14 +19,16 @@ import heapq
 
 
 from collections import defaultdict
-import re
+
+import cv2
+
 
 import json
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/workspace/modelserver/default-demo-app-c4bc3-b67061a9c4b1.json"
 
 
-guide_file_path = '/workspace/modelserver/modelserver/guidance/0713_demo.csv'
+guide_file_path = '/workspace/modelserver/modelserver/guidance/Guidance_sentences_0729.csv'
 
 def start(url, queue, is_visualize):
     print('server start')
@@ -305,8 +307,6 @@ class ModelServer:
 
         while True:
             try:
-                curr_time = int(round(time.time() * 1000))
-
                 ## restart audio process when there is no signal
                 if not self.audial_process.is_alive():
                     self.restart_audial_process()
@@ -314,10 +314,6 @@ class ModelServer:
                 if self.time_decay(): ## True when there are re-ordered phrases
                     displayed_phrases= self.get_recommendations()
                 
-                # after_time_decay_time = int(round(time.time() * 1000))
-                # print("____________________________________")
-                # print("time_decay_time : "+str((after_time_decay_time-curr_time)/1000))
-
 
                 # This blocks until an item is available
                 result = self.queue.get(block=True, timeout=None) 
@@ -351,6 +347,9 @@ class ModelServer:
                                         
 
                     if visualize:
+                        
+                        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
                         visualizer_curr = self.visualizer[camera_id]
                         visualizer_curr.draw_objects(image, object_bboxes, 
                                 object_classnames, object_confidences)
@@ -360,15 +359,10 @@ class ModelServer:
                                     gaze_targets[i])
 
                         #test for sync
-                        transcript_sync = "video time : "+video_time+ "// audio time : "+audio_time+"// "+transcript
-                        # image = visualizer_curr.add_captions_recommend(image,transcript,target_spoken)
-                        image = visualizer_curr.add_captions_recommend(image,transcript_sync,target_spoken)
+                        image = visualizer_curr.add_captions_recommend(image,transcript,target_spoken)
                         visualizer_curr.visave(image, frame_num)
                     target_spoken.clear()
 
-
-                    # after_visual_result_time = int(round(time.time() * 1000))
-                    # print("visual_processing_time : "+str((after_visual_result_time-after_time_decay_time)/1000))
 
 
                 elif result['from'] == 'audio':
@@ -378,6 +372,8 @@ class ModelServer:
                     spoken_words_update = result['spoken_words_update']
 
                     audio_time = result['audio_time']
+                    
+                    print(transcript)
 
 
                     
@@ -396,10 +392,6 @@ class ModelServer:
                     if len(spoken_objects) != 0 :
                             displayed_phrases = self.update_context('audial', spoken_objects)
                     
-                    # after_audial_result_time = int(round(time.time() * 1000))
-                    # print("audial_processing_time : "+str((after_audial_result_time-after_time_decay_time)/1000))
-
-
                     # if transcript is final
                     # if result['is_final']: 
                     #     spoken_objects = []

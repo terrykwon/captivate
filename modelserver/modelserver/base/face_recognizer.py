@@ -4,6 +4,7 @@ from arcface.config import Config
 from torch.nn import DataParallel
 
 
+
 class FaceRecognizer(): 
 
     def __init__(self, weight_path, target_faces):

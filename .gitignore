@@ -9,3 +9,4 @@ modelserver/*.avi
 modelserver/*.mp4
 modelserver/models/train
 *.mp4
+__pycache__

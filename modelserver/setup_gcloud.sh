@@ -1,1 +1,0 @@
-export GOOGLE_APPLICATION_CREDENTIALS="/workspace/modelserver/data/default-demo-app-c4bc3-b67061a9c4b1.json"

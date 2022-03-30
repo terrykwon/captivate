@@ -1,4 +1,4 @@
-# Captivate! Contextual language guidance for Parent–Infant Interaction
+# Captivate! Contextual language guidance for Parent–Child Interaction
 This repo contains the server-side source code for **Captivate!**, a system 
 that analyzes real-time video and audio streams to provide language guidance 
 for parents in play situations.

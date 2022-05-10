@@ -1,4 +1,4 @@
-# Captivate! Contextual language guidance for Parent–Child Interaction
+# Captivate! Contextual Language Guidance for Parent–Child Interaction
 This repo contains the server-side source code for **Captivate!**, a system 
 that analyzes real-time video and audio streams to provide language guidance 
 for parents in play situations.
@@ -41,6 +41,25 @@ run with.
 ```sh
 ./build.sh
 ./run.sh
+```
+
+## Citing
+```bibtex
+@inproceedings{kwon2022captivate,
+  author = {Kwon, Taeahn and Jeong, Minkyung and Ko, Eon-Suk and Lee, Youngki},
+  title = {Captivate! Contextual Language Guidance for Parent–Child Interaction},
+  year = {2022},
+  isbn = {9781450391573},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3491102.3501865},
+  doi = {10.1145/3491102.3501865},
+  booktitle = {CHI Conference on Human Factors in Computing Systems},
+  articleno = {219},
+  numpages = {17},
+  location = {New Orleans, LA, USA},
+  series = {CHI '22}
+}
 ```
 
 

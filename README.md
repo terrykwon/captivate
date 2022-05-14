@@ -3,6 +3,8 @@ This repo contains the server-side source code for **Captivate!**, a system
 that analyzes real-time video and audio streams to provide language guidance 
 for parents in play situations.
 
+[[Paper]](https://dl.acm.org/doi/abs/10.1145/3491102.3501865) [[Website]](https://hcs.snu.ac.kr/captivate)
+
 
 ## System overview
 The system separately processes video and audio streams, with the goal
